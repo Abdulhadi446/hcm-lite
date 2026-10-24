@@ -23,7 +23,18 @@ function createDb(): DatabaseSync {
 
   const schema = fs.readFileSync(path.join(HERE, "schema.sql"), "utf8");
   db.exec(schema);
+  ensureColumn(db, "announcements", "pinned", "INTEGER NOT NULL DEFAULT 0");
+  ensureColumn(db, "notifications", "type", "TEXT");
+  ensureColumn(db, "notifications", "link", "TEXT");
   return db;
+}
+
+/** Idempotent additive migration for databases created before a column existed. */
+function ensureColumn(db: DatabaseSync, table: string, column: string, definition: string): void {
+  const columns = db.prepare(`PRAGMA table_info(${table})`).all() as { name: string }[];
+  if (!columns.some((entry) => entry.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
 }
 
 const globalForDb = globalThis as unknown as { __hcmDb?: DatabaseSync };

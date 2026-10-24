@@ -1,5 +1,6 @@
 import "server-only";
-import { nowIso, run } from "@/lib/db";
+import type { Role } from "@/lib/auth";
+import { nowIso, queryAll, queryOne, run } from "@/lib/db";
 
 export type AuditAction =
   | "create"
@@ -84,4 +85,128 @@ export function logAudit(input: {
   } catch (err) {
     console.error("[audit] failed to write audit row:", err);
   }
+}
+
+// --------------------------------------------------------------- reading
+
+export type AuditRow = {
+  id: number;
+  actorName: string;
+  actorRole: Role;
+  action: string;
+  entity: string;
+  entityId: number | null;
+  beforeJson: string | null;
+  afterJson: string | null;
+  ip: string | null;
+  createdAt: string;
+};
+
+export type AuditFilters = {
+  entity?: string;
+  actor?: string;
+  actorId?: number;
+  from?: string;
+  to?: string;
+  page?: number;
+  pageSize?: number;
+};
+
+type AuditDbRow = {
+  id: number;
+  actor_name: string | null;
+  actor_role: Role | null;
+  action: string;
+  entity: string;
+  entity_id: number | null;
+  before_json: string | null;
+  after_json: string | null;
+  created_at: string;
+};
+
+const DEFAULT_PAGE_SIZE = 20;
+const MAX_PAGE_SIZE = 100;
+
+/**
+ * Filtered, paginated audit feed for the Admin viewer. `actor` is a
+ * case-insensitive search over the actor's name and email.
+ */
+export function listAuditLogs(filters: AuditFilters = {}): {
+  items: AuditRow[];
+  total: number;
+  page: number;
+  pageSize: number;
+  entities: string[];
+} {
+  const page = Math.max(1, Math.trunc(filters.page ?? 1));
+  const pageSize = Math.min(
+    MAX_PAGE_SIZE,
+    Math.max(1, Math.trunc(filters.pageSize ?? DEFAULT_PAGE_SIZE))
+  );
+
+  const where: string[] = [];
+  const params: (string | number)[] = [];
+
+  if (filters.entity) {
+    where.push("a.entity = ?");
+    params.push(filters.entity);
+  }
+  if (filters.actorId) {
+    where.push("a.actor_user_id = ?");
+    params.push(filters.actorId);
+  }
+  if (filters.actor) {
+    const like = `%${filters.actor.trim().toLowerCase()}%`;
+    where.push("(lower(u.name) LIKE ? OR lower(u.email) LIKE ?)");
+    params.push(like, like);
+  }
+  if (filters.from) {
+    where.push("a.created_at >= ?");
+    params.push(`${filters.from}T00:00:00.000Z`);
+  }
+  if (filters.to) {
+    where.push("a.created_at <= ?");
+    params.push(`${filters.to}T23:59:59.999Z`);
+  }
+
+  const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const fromSql = "FROM audit_logs a LEFT JOIN users u ON u.id = a.actor_user_id";
+
+  const total = Number(
+    queryOne<{ c: number }>(`SELECT COUNT(*) AS c ${fromSql} ${whereSql}`, ...params)?.c ?? 0
+  );
+
+  const rows = queryAll<AuditDbRow>(
+    `SELECT a.id, u.name AS actor_name, u.role AS actor_role, a.action, a.entity,
+            a.entity_id, a.before_json, a.after_json, a.created_at
+       ${fromSql} ${whereSql}
+      ORDER BY a.created_at DESC, a.id DESC
+      LIMIT ? OFFSET ?`,
+    ...params,
+    pageSize,
+    (page - 1) * pageSize
+  );
+
+  const entities = queryAll<{ entity: string }>(
+    "SELECT DISTINCT entity FROM audit_logs ORDER BY entity COLLATE NOCASE"
+  ).map((row) => row.entity);
+
+  return {
+    items: rows.map((row) => ({
+      id: Number(row.id),
+      actorName: row.actor_name ?? "Deleted user",
+      actorRole: row.actor_role ?? "employee",
+      action: row.action,
+      entity: row.entity,
+      entityId: row.entity_id === null ? null : Number(row.entity_id),
+      beforeJson: row.before_json,
+      afterJson: row.after_json,
+      ip: null,
+      createdAt: row.created_at,
+    })),
+    total,
+    page,
+    pageSize,
+    entities,
+  };
 }

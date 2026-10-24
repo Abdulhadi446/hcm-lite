@@ -1,15 +1,20 @@
-import { PagePlaceholder } from "@/components/page-placeholder"
+import { redirect } from "next/navigation";
 
-export default function AnnouncementsPage() {
+import { AnnouncementsView } from "@/components/announcements/announcements-view";
+import { PageHeader } from "@/components/page-header";
+import { getSessionUser } from "@/lib/auth";
+
+export default async function AnnouncementsPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
   return (
-    <PagePlaceholder
-      title="Announcements"
-      purpose="Company-wide updates visible to all roles."
-      capabilities={[
-        "Admins and HR post announcements.",
-        "All employees can read announcements.",
-        "Announcements surface on dashboards.",
-      ]}
-    />
-  )
+    <div className="space-y-6">
+      <PageHeader
+        title="Announcements"
+        description="Company-wide updates, pinned posts first and newest after that."
+      />
+      <AnnouncementsView role={user.role} userId={user.id} />
+    </div>
+  );
 }

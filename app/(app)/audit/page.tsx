@@ -1,15 +1,21 @@
-import { PagePlaceholder } from "@/components/page-placeholder"
+import { redirect } from "next/navigation";
 
-export default function AuditPage() {
+import { AuditView } from "@/components/audit/audit-view";
+import { PageHeader } from "@/components/page-header";
+import { getSessionUser } from "@/lib/auth";
+
+export default async function AuditPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+  if (user.role !== "admin") redirect("/dashboard");
+
   return (
-    <PagePlaceholder
-      title="Audit"
-      purpose="Actor, action, entity, and before/after JSON log."
-      capabilities={[
-        "Audit log viewer.",
-        "Actor / action / entity / before-after JSON records.",
-        "Writes on create, update, approve, and finalize actions.",
-      ]}
-    />
-  )
+    <div className="space-y-6">
+      <PageHeader
+        title="Audit log"
+        description="Every create, update, approve and delete, with before/after snapshots."
+      />
+      <AuditView />
+    </div>
+  );
 }

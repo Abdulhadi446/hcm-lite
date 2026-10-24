@@ -30,6 +30,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { Separator } from "@/components/ui/separator";
+import { NotificationBell } from "@/components/notifications/notification-bell";
 import { cn } from "@/lib/utils";
 import { navItemsFor } from "@/lib/nav";
 
@@ -161,6 +162,7 @@ export function AppShell({ user, children }: { user: User; children: React.React
           </div>
 
           <div className="flex items-center gap-2">
+            <NotificationBell />
             <Button
               variant="ghost"
               size="sm"

@@ -18,6 +18,7 @@ export type DashboardKpis = {
   leaveUtilization: number;
   payrollCost: number;
   payrollLabel: string;
+  payrollHasDraft: boolean;
   avgTenureMonths: number;
   openCorrections: number;
   pendingLeaves: number;

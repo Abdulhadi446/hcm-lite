@@ -125,7 +125,7 @@ temporary password that the employee must change on first sign-in.
 
 A fresh install is empty by design. To populate a realistic dataset in one click, sign in as
 **Admin → Organization → Company → Load sample data**. It creates 4 departments, 5 designations,
-6 employees (logins `…@demo.hcm` / `Demo@12345`), 30 weekdays of attendance with a realistic mix of
+6 employees (logins `firstname.lastname@hcm.demo` / `Demo@12345`), 30 weekdays of attendance with a realistic mix of
 present / late / half-day / missing-checkout / absent, three leave requests, a finalized previous
 month plus a draft current month of payroll, announcements and pending corrections. The endpoint is
 Admin-only (`POST /api/demo/seed`) and refuses to run once employees exist.

@@ -61,6 +61,7 @@ export type DashboardKpis = {
   leaveUtilization: number;
   payrollCost: number;
   payrollLabel: string;
+  payrollHasDraft: boolean;
   avgTenureMonths: number;
   openCorrections: number;
   pendingLeaves: number;
@@ -352,22 +353,51 @@ function payrollTotal(
   to: string,
   departmentId?: number | null,
   employeeId?: number | null
-): { total: number; multiMonth: boolean } {
+): { total: number; multiMonth: boolean; hasDraft: boolean } {
   const fromMonth = from.slice(0, 7);
   const toMonth = to.slice(0, 7);
   const filter = scopeFilter(departmentId, employeeId);
-  const row = queryOne<{ total: number }>(
-    `SELECT COALESCE(SUM(p.net), 0) AS total
+
+  // One row per month + status. A month with a finalized run ignores its draft
+  // (drafts are deleted on finalize in practice, but the guard keeps the KPI
+  // from double counting) and only the remaining draft months are added on top.
+  const rows = queryAll<{ month: string; status: string; net: number }>(
+    `SELECT r.month AS month, r.status AS status, COALESCE(SUM(p.net), 0) AS net
        FROM payslips p
        JOIN payroll_runs r ON r.id = p.run_id
        JOIN employees e ON e.id = p.employee_id
-      WHERE r.status = 'finalized'
-        AND r.month >= ? AND r.month <= ?${filter.sql}`,
+      WHERE r.status IN ('finalized', 'draft')
+        AND r.month >= ? AND r.month <= ?${filter.sql}
+      GROUP BY r.month, r.status`,
     fromMonth,
     toMonth,
     ...filter.args
   );
-  return { total: round2(Number(row?.total ?? 0)), multiMonth: fromMonth !== toMonth };
+
+  const byMonth = new Map<string, { finalized?: number; draft?: number }>();
+  for (const row of rows) {
+    const entry = byMonth.get(row.month) ?? {};
+    if (row.status === "finalized") entry.finalized = Number(row.net);
+    else entry.draft = Number(row.net);
+    byMonth.set(row.month, entry);
+  }
+
+  let total = 0;
+  let hasDraft = false;
+  for (const entry of byMonth.values()) {
+    if (entry.finalized !== undefined) {
+      total += entry.finalized;
+    } else if (entry.draft !== undefined) {
+      total += entry.draft;
+      hasDraft = true;
+    }
+  }
+
+  return {
+    total: round2(total),
+    multiMonth: fromMonth !== toMonth,
+    hasDraft,
+  };
 }
 
 // ------------------------------------------------------------- metrics
@@ -495,6 +525,7 @@ export function computeMetrics(input: MetricsInput = {}): MetricsResult {
     leaveUtilization: utilization,
     payrollCost: payroll.total,
     payrollLabel: payroll.multiMonth ? "YTD" : "Period",
+    payrollHasDraft: payroll.hasDraft,
     avgTenureMonths,
     openCorrections,
     pendingLeaves,

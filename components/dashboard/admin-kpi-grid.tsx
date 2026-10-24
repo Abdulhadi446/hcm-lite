@@ -100,7 +100,7 @@ export function AdminKpiGrid({
         label="Payroll cost"
         value={formatMoney(kpis.payrollCost)}
         title={formatMoney(kpis.payrollCost)}
-        note={`Finalized · ${kpis.payrollLabel}`}
+        note={`${kpis.payrollHasDraft ? "Includes draft" : "Finalized"} · ${kpis.payrollLabel}`}
         icon={<WalletIcon className="size-3.5" />}
       />
     </div>

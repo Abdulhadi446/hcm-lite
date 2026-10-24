@@ -5,7 +5,7 @@ Live: https://hcm-lite.thetrillioniar.me · Repo: https://github.com/Abdulhadi44
 Reset to a truly empty install before presenting: `bash scripts/reset-deployed-db.sh` (≈20 s).
 
 **Fast path (judged demo, 30 s):** after the setup wizard, as Admin open **Organization → Company →
-Load sample data**. It seeds 6 employees (`…@demo.hcm` / `Demo@12345`), 30 weekdays of attendance,
+Load sample data**. It seeds 6 employees (`firstname.lastname@hcm.demo` / `Demo@12345`), 30 weekdays of attendance,
 leave history, a finalized September payroll plus an October draft, announcements and pending
 corrections — then jump straight to steps 10–12 (dashboard, AI, audit) or use it as a fallback if
 live data entry runs out of time. Add `?status=pending` to `/leave` to show the approval queue.

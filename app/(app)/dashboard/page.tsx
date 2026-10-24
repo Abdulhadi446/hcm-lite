@@ -1,146 +1,324 @@
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { AttendanceTrendChart } from "@/components/attendance-trend-chart"
-import { connection } from "next/server"
-import { getSessionUser } from "@/lib/auth"
-import { ClockIcon, MegaphoneIcon, UsersIcon } from "lucide-react"
+import { Suspense } from "react";
+import { connection } from "next/server";
+import Link from "next/link";
+import { redirect } from "next/navigation";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { buttonVariants } from "@/components/ui/button";
+import { EmptyState, PageHeader } from "@/components/page-header";
+import { ClockIcon, LineChartIcon, MegaphoneIcon, PinIcon } from "lucide-react";
 
-type Role = "admin" | "hr" | "employee"
+import { getSessionUser, type SessionUser } from "@/lib/auth";
+import { isIsoDate, monthRange, todayIso } from "@/lib/dates";
+import { relativeTime } from "@/lib/relative-time";
+import { computeMetrics, employeeDashboard } from "@/lib/services/analytics";
+import { listAnnouncements } from "@/lib/services/comms";
+import { listDepartments } from "@/lib/services/org";
+import { AdminKpiGrid } from "@/components/dashboard/admin-kpi-grid";
+import { DashboardFilters } from "@/components/dashboard/dashboard-filters";
+import { DashboardSkeleton, EmployeeDashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
+import { DepartmentTable } from "@/components/dashboard/department-table";
+import { EmployeeKpiGrid } from "@/components/dashboard/employee-kpi-grid";
+import { EmployeeQuickCards, LeaveBalanceBars } from "@/components/dashboard/employee-widgets";
+import { PendingApprovals } from "@/components/dashboard/pending-approvals";
+import { RecentHires } from "@/components/dashboard/recent-hires";
+import { DashboardTrendChart } from "@/components/dashboard/trend-chart";
 
-const KPIS_BY_ROLE: Record<Role, { label: string; value: string; note: string }[]> = {
-  admin: [
-    { label: "Headcount", value: "0", note: "Live in M2–M6" },
-    { label: "Attrition YTD", value: "—", note: "Live in M2–M6" },
-    { label: "Payroll cost", value: "0", note: "Live in M2–M6" },
-    { label: "Avg salary", value: "—", note: "Live in M2–M6" },
-  ],
-  hr: [
-    { label: "Headcount", value: "0", note: "Live in M2–M6" },
-    { label: "Present today", value: "0", note: "Live in M2–M6" },
-    { label: "On leave", value: "0", note: "Live in M2–M6" },
-    { label: "Pending approvals", value: "0", note: "Live in M2–M6" },
-  ],
-  employee: [
-    { label: "Hours this week", value: "0", note: "Live in M2–M6" },
-    { label: "Late count", value: "0", note: "Live in M2–M6" },
-    { label: "Leave balance", value: "0", note: "Live in M2–M6" },
-    { label: "Last payslip", value: "—", note: "Live in M2–M6" },
-  ],
-}
+type SearchParams = Record<string, string | string[] | undefined>;
 
 function greeting() {
-  const h = new Date().getHours()
-  if (h < 12) return "Good morning"
-  if (h < 17) return "Good afternoon"
-  return "Good evening"
+  const h = new Date().getHours();
+  if (h < 12) return "Good morning";
+  if (h < 17) return "Good afternoon";
+  return "Good evening";
 }
 
-export default async function DashboardPage() {
-  await connection()
-  const user = await getSessionUser()
-  const role = (user?.role ?? "employee") as Role
-  const kpis = KPIS_BY_ROLE[role]
-  const today = new Date().toLocaleDateString(undefined, {
+function readParam(value: string | string[] | undefined): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value ?? undefined;
+}
+
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<SearchParams>;
+}) {
+  await connection();
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
+  const params = await searchParams;
+  const today = todayIso();
+  const month = monthRange(today.slice(0, 7));
+
+  const fromParam = readParam(params.from);
+  const toParam = readParam(params.to);
+  const from = fromParam && isIsoDate(fromParam) ? fromParam : month.start;
+  const to = toParam && isIsoDate(toParam) ? toParam : today;
+  const safeFrom = from > to ? to : from;
+
+  const departmentRaw = readParam(params.departmentId);
+  const departmentId =
+    departmentRaw && /^\d+$/.test(departmentRaw) ? Number(departmentRaw) : null;
+
+  const todayLabel = new Date().toLocaleDateString(undefined, {
     weekday: "long",
     year: "numeric",
     month: "long",
     day: "numeric",
-  })
+  });
 
+  const header = (
+    <PageHeader
+      title="Dashboard"
+      description={`${greeting()}, today is ${todayLabel}`}
+      actions={
+        <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-xs text-muted-foreground">
+          <ClockIcon className="size-3.5" />
+          {user.role === "employee" ? "Your records" : "Company overview"}
+        </span>
+      }
+    />
+  );
+
+  if (user.role === "employee") {
+    return (
+      <div className="space-y-5">
+        {header}
+        <Suspense fallback={<EmployeeDashboardSkeleton />}>
+          <EmployeeDashboardView user={user} />
+        </Suspense>
+      </div>
+    );
+  }
+
+  const departments = listDepartments().map((department) => ({
+    id: department.id,
+    name: department.name,
+  }));
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Dashboard</h1>
-          <p className="mt-1 flex items-start gap-1.5 text-sm text-muted-foreground">
-            <ClockIcon className="mt-0.5 size-4 shrink-0" />
-            {greeting()}, today is {today}
-          </p>
-        </div>
-      </div>
+    <div className="space-y-5">
+      {header}
+      <DashboardFilters
+        from={safeFrom}
+        to={to}
+        departmentId={departmentId}
+        departments={departments}
+      />
+      <Suspense
+        key={`${safeFrom}:${to}:${departmentId ?? "all"}`}
+        fallback={<DashboardSkeleton />}
+      >
+        <CompanyDashboard from={safeFrom} to={to} departmentId={departmentId} />
+      </Suspense>
+    </div>
+  );
+}
 
-      {/* KPI cards */}
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {kpis.map((kpi, i) => (
-          <Card key={i} className="border-border">
-            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2.5">
-              <CardTitle className="text-sm font-medium">{kpi.label}</CardTitle>
-              <CardTitle className="text-2xl font-bold">{kpi.value}</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xs text-muted-foreground">{kpi.note}</p>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+// ------------------------------------------------------------- company view
 
-      <div className="grid gap-6 md:grid-cols-12">
-        {/* Attendance trend */}
-        <div className="md:col-span-7 lg:col-span-8">
-          <Card className="border-border">
-            <CardHeader>
+async function CompanyDashboard({
+  from,
+  to,
+  departmentId,
+}: {
+  from: string;
+  to: string;
+  departmentId: number | null;
+}) {
+  const summary = computeMetrics({ from, to, departmentId });
+  const { kpis, today, trend, byDepartment, pending, recentHires } = summary;
+  const departmentName =
+    departmentId === null
+      ? "Whole company"
+      : (byDepartment.find((item) => item.departmentId === departmentId)?.departmentName ??
+        "Selected department");
+
+  return (
+    <div className="space-y-4">
+      <AdminKpiGrid kpis={kpis} today={today} />
+
+      {kpis.headcount === 0 ? (
+        <Card>
+          <CardContent className="p-4">
+            <EmptyState
+              title="No employees in this scope yet"
+              description="Add employees (or pick another department) and the KPIs, trend and department table fill in automatically."
+              action={
+                <Link href="/employees/new" className={buttonVariants({ size: "sm" })}>
+                  Add employee
+                </Link>
+              }
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <div className="grid gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-8">
+          <Card className="overflow-hidden">
+            <CardHeader className="border-b border-border pb-3">
               <CardTitle className="flex items-center gap-2">
-                <UsersIcon className="size-4" />
+                <LineChartIcon className="size-4" />
                 Attendance trend
               </CardTitle>
-              <CardDescription className="text-xs">No check-in data yet.</CardDescription>
+              <CardDescription className="text-xs">
+                {departmentName} · {trend.length} working day{trend.length === 1 ? "" : "s"}{" "}
+                recorded in this range
+              </CardDescription>
             </CardHeader>
-            <CardContent className="pt-0">
-              <AttendanceTrendChart />
-              <p className="text-xs text-muted-foreground mt-3">Flat series — check-ins begin in M4.</p>
+            <CardContent className="pt-4">
+              {trend.length === 0 ? (
+                <EmptyState
+                  title="No attendance in this range"
+                  description="Pick a range that includes today, or ask employees to check in to see the daily split."
+                />
+              ) : (
+                <DashboardTrendChart data={trend} />
+              )}
             </CardContent>
           </Card>
         </div>
 
-        {/* Announcements */}
-        <div className="md:col-span-5 lg:col-span-4">
-          <Card className="border-border">
-            <CardHeader>
-              <CardTitle>Announcements</CardTitle>
-              <CardDescription>Company-wide updates appear here.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3">
-              <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
-                <MegaphoneIcon className="mx-auto size-5 text-muted-foreground" />
-                <p className="mt-2 text-sm font-medium">No announcements yet</p>
-                <p className="mt-1 text-xs text-muted-foreground">
-                  Admins and HR will post company updates here.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
+        <div className="space-y-4 lg:col-span-4">
+          <AnnouncementsCard />
+          <AiTeaserCard />
+        </div>
+      </div>
 
-          {/* AI assistant teaser */}
-          <Card className="border-border">
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-primary/10 text-primary">✦</span>
-                AI assistant
-              </CardTitle>
-              <CardDescription>Ask about your data. Coming in M7–M8.</CardDescription>
-            </CardHeader>
-            <CardContent className="pt-0">
-              <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-                <div className="flex items-start gap-2">
-                  <span className="mt-1 text-xs text-primary">•</span>
-                  <span>Dashboard summaries from live data</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="mt-1 text-xs text-primary">•</span>
-                  <span>Smart leave: sentence → pre-filled form</span>
-                </div>
-                <div className="flex items-start gap-2">
-                  <span className="mt-1 text-xs text-primary">•</span>
-                  <span>Policy Q&A from your records</span>
-                </div>
-              </div>
-            </CardContent>
-            <CardFooter>
-              <span className="text-[10px] uppercase tracking-wider text-muted-foreground">AI-generated answers are labelled</span>
-            </CardFooter>
-          </Card>
+      <div className="grid gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-8">
+          <DepartmentTable items={byDepartment} />
+        </div>
+        <div className="space-y-4 lg:col-span-4">
+          <PendingApprovals leaves={pending.leaves} corrections={pending.corrections} />
+          <RecentHires items={recentHires} />
         </div>
       </div>
     </div>
-  )
+  );
+}
+
+// ------------------------------------------------------------ employee view
+
+async function EmployeeDashboardView({ user }: { user: SessionUser }) {
+  const data = employeeDashboard(user);
+
+  return (
+    <div className="space-y-4">
+      {data.me.employeeId === null ? (
+        <Card>
+          <CardContent className="p-4">
+            <EmptyState
+              title="Your login isn't linked to an employee profile"
+              description="Ask HR to connect your account to an employee record to see personal attendance, leave and payslips here."
+            />
+          </CardContent>
+        </Card>
+      ) : null}
+
+      <EmployeeKpiGrid me={data.me} />
+
+      <div className="grid gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-7">
+          <LeaveBalanceBars items={data.leaveBalances} />
+        </div>
+        <div className="lg:col-span-5">
+          <EmployeeQuickCards data={data} />
+        </div>
+      </div>
+
+      <div className="grid gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-7">
+          <AnnouncementsCard />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// --------------------------------------------------------------- shared bits
+
+function AnnouncementsCard() {
+  const latestAnnouncements = listAnnouncements(3);
+  return (
+    <Card className="border-border">
+      <CardHeader>
+        <CardTitle>Announcements</CardTitle>
+        <CardDescription>Latest company-wide updates.</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {latestAnnouncements.length === 0 ? (
+          <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
+            <MegaphoneIcon className="mx-auto size-5 text-muted-foreground" />
+            <p className="mt-2 text-sm font-medium">No announcements yet</p>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Admins and HR will post company updates here.
+            </p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {latestAnnouncements.map((announcement) => (
+              <div
+                key={announcement.id}
+                className="space-y-1 border-b border-border pb-3 last:border-0 last:pb-0"
+              >
+                <div className="flex items-start gap-1.5">
+                  {announcement.pinned ? (
+                    <PinIcon className="mt-0.5 size-3 shrink-0 text-primary" />
+                  ) : null}
+                  <p className="break-words text-sm font-medium">{announcement.title}</p>
+                </div>
+                <p className="line-clamp-2 break-words text-xs text-muted-foreground">
+                  {announcement.body}
+                </p>
+                <p className="text-[11px] text-muted-foreground">
+                  {announcement.authorName} · {relativeTime(announcement.createdAt)}
+                </p>
+              </div>
+            ))}
+          </div>
+        )}
+        <Link
+          href="/announcements"
+          className="inline-block text-xs font-medium text-primary underline-offset-4 hover:underline"
+        >
+          View all announcements
+        </Link>
+      </CardContent>
+    </Card>
+  );
+}
+
+function AiTeaserCard() {
+  return (
+    <Card className="border-border">
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-primary/10 text-primary">✦</span>
+          AI assistant
+        </CardTitle>
+        <CardDescription>Ask about your data. Coming in M7–M8.</CardDescription>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="flex flex-col gap-2 text-sm text-muted-foreground">
+          <div className="flex items-start gap-2">
+            <span className="mt-1 text-xs text-primary">•</span>
+            <span>Dashboard summaries from live data</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="mt-1 text-xs text-primary">•</span>
+            <span>Smart leave: sentence → pre-filled form</span>
+          </div>
+          <div className="flex items-start gap-2">
+            <span className="mt-1 text-xs text-primary">•</span>
+            <span>Policy Q&amp;A from your records</span>
+          </div>
+        </div>
+      </CardContent>
+      <CardFooter>
+        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">AI-generated answers are labelled</span>
+      </CardFooter>
+    </Card>
+  );
 }

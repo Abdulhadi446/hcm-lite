@@ -121,6 +121,15 @@ Then, as Admin, add departments, designations, leave types and holidays, and cre
 (Organization → Logins). Sign in as HR to register employees — each registration returns a one-time
 temporary password that the employee must change on first sign-in.
 
+### Sample data (exploring or judging)
+
+A fresh install is empty by design. To populate a realistic dataset in one click, sign in as
+**Admin → Organization → Company → Load sample data**. It creates 4 departments, 5 designations,
+6 employees (logins `…@demo.hcm` / `Demo@12345`), 30 weekdays of attendance with a realistic mix of
+present / late / half-day / missing-checkout / absent, three leave requests, a finalized previous
+month plus a draft current month of payroll, announcements and pending corrections. The endpoint is
+Admin-only (`POST /api/demo/seed`) and refuses to run once employees exist.
+
 ### Environment
 
 | Variable | Purpose |
@@ -163,7 +172,11 @@ The remote host needs Node 22 (`/opt/node22`) because of `node:sqlite`; the tunn
 - `scripts/api-smoke-m2.mjs` — org CRUD, users, employees, search/paging, CSV import/export, RBAC, audit rows
 - `scripts/api-smoke-m3m5.mjs` — attendance status rules, leave working-day math + 422s, payroll numbers
   (proration, deductions, tax slabs), finalize lock, payslip PDF magic bytes
+- `scripts/api-smoke-m6.mjs` — dashboard KPIs, filters and role scoping
+- `scripts/api-smoke-m7a.mjs` — AI tools, salary refusal, rate limiting, `ai_logs`
 - `scripts/api-smoke-m8.mjs` — announcements, notifications, audit viewer permissions
+- `scripts/api-smoke-demo-seed.mjs` — sample-data loader (API + UI, 1440/375)
+- `scripts/e2e-full.mjs` — the whole journey from an empty database through the UI (18 checks)
 - `scripts/deployed-check.mjs` — live URL walkthrough with Playwright (desktop + 375 px screenshots)
 
 Each smoke script boots `next start` on its own port against a throwaway SQLite file, so they can run

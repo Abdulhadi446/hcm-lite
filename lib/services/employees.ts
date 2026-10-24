@@ -499,7 +499,8 @@ export function employeeOverview(
        SUM(CASE WHEN status IN ('present','late','half_day') OR (status IS NULL AND check_in_at IS NOT NULL) THEN 1 ELSE 0 END) AS present,
        SUM(CASE WHEN status = 'late' THEN 1 ELSE 0 END) AS late,
        SUM(CASE WHEN status = 'absent' THEN 1 ELSE 0 END) AS absent
-     FROM attendance WHERE employee_id = ?`,
+     FROM attendance
+     WHERE employee_id = ? AND date >= date('now', '-30 day')`,
     id
   );
 

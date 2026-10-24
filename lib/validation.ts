@@ -6,6 +6,11 @@ export const setupSchema = z.object({
   adminName: z.string().trim().min(1, "Admin name is required").max(200),
   adminEmail: z.email("A valid email is required").trim().toLowerCase(),
   adminPassword: z.string().min(8, "Password must be at least 8 characters"),
+  officeStart: z
+    .string()
+    .trim()
+    .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a 24-hour time like 09:00")
+    .optional(),
 });
 
 export const loginSchema = z.object({

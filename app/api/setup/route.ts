@@ -13,7 +13,7 @@ export async function POST(request: Request) {
     // check; otherwise the posted admin is created below.
     ensureEnvAdmin();
 
-    const { companyName, adminName, adminEmail, adminPassword } = parsed.data;
+    const { companyName, adminName, adminEmail, adminPassword, officeStart } = parsed.data;
     const db = getDb();
 
     const existing = db
@@ -26,8 +26,8 @@ export async function POST(request: Request) {
     db.exec("BEGIN IMMEDIATE;");
     try {
       db.prepare(
-        "INSERT INTO settings (id, company_name, created_at) VALUES (1, ?, ?)"
-      ).run(companyName, nowIso());
+        "INSERT INTO settings (id, company_name, office_start, created_at) VALUES (1, ?, ?, ?)"
+      ).run(companyName, officeStart ?? "09:00", nowIso());
 
       db.prepare(
         "INSERT INTO users (email, password_hash, name, role, must_change_password, active, created_at) VALUES (?, ?, ?, 'admin', 0, 1, ?)"

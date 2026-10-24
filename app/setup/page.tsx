@@ -18,7 +18,6 @@ type SetupStep = 1 | 2
 interface SetupForm {
   companyName: string
   officeStart: string
-  officeEnd: string
 }
 
 interface AdminForm {
@@ -53,7 +52,6 @@ function SetupWizard() {
   const [setup, setSetup] = useState<SetupForm>({
     companyName: "",
     officeStart: "09:00",
-    officeEnd: "18:00",
   })
   const [admin, setAdmin] = useState<AdminForm>({
     name: "",
@@ -121,6 +119,7 @@ function SetupWizard() {
           adminName: admin.name.trim(),
           adminEmail: admin.email.trim(),
           adminPassword: admin.password,
+          officeStart: setup.officeStart,
         }),
       })
 
@@ -281,7 +280,8 @@ function SetupWizard() {
                       <div className="space-y-2 border-t pt-4">
                         <Label htmlFor="officeStart">Office hours (defaults)</Label>
                         <p className="text-xs text-muted-foreground">
-                          Optional working-day defaults. These can be changed later in Organization settings.
+                          When the working day starts — lateness is measured from here. Grace period,
+                          half-day threshold and weekends are set later in Organization settings.
                         </p>
                         <div className="grid gap-3 sm:grid-cols-2">
                           <div className="space-y-2">
@@ -291,16 +291,6 @@ function SetupWizard() {
                               type="time"
                               value={setup.officeStart}
                               onChange={(e) => setSetup({ ...setup, officeStart: e.target.value })}
-                              disabled={submitting}
-                            />
-                          </div>
-                          <div className="space-y-2">
-                            <Label htmlFor="officeEnd">Ends at</Label>
-                            <Input
-                              id="officeEnd"
-                              type="time"
-                              value={setup.officeEnd}
-                              onChange={(e) => setSetup({ ...setup, officeEnd: e.target.value })}
                               disabled={submitting}
                             />
                           </div>

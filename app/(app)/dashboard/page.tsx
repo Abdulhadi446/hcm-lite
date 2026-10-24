@@ -2,10 +2,18 @@ import { Suspense } from "react";
 import { connection } from "next/server";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { format, parseISO } from "date-fns";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { buttonVariants } from "@/components/ui/button";
-import { EmptyState, PageHeader } from "@/components/page-header";
-import { ClockIcon, LineChartIcon, MegaphoneIcon, PinIcon } from "lucide-react";
+import { EmptyState } from "@/components/page-header";
+import { DashboardHero } from "@/components/brand/dashboard-hero";
+import {
+  ArrowUpRightIcon,
+  LineChartIcon,
+  MegaphoneIcon,
+  PinIcon,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
 
 import { getSessionUser, type SessionUser } from "@/lib/auth";
 import { isIsoDate, monthRange, todayIso } from "@/lib/dates";
@@ -37,6 +45,11 @@ function readParam(value: string | string[] | undefined): string | undefined {
   return value ?? undefined;
 }
 
+/** "1 Oct – 25 Oct 2026" — the range the numbers on this page describe. */
+function rangeLabel(from: string, to: string) {
+  return `${format(parseISO(from), "d MMM")} – ${format(parseISO(to), "d MMM yyyy")}`;
+}
+
 export default async function DashboardPage({
   searchParams,
 }: {
@@ -60,23 +73,22 @@ export default async function DashboardPage({
   const departmentId =
     departmentRaw && /^\d+$/.test(departmentRaw) ? Number(departmentRaw) : null;
 
-  const todayLabel = new Date().toLocaleDateString(undefined, {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
+  const todayLabel = format(parseISO(today), "EEEE, d MMMM yyyy");
 
+  // Employees see month-to-date personal records; everyone else sees the
+  // reporting range that the filters below control.
+  const isEmployeeView = user.role === "employee";
   const header = (
-    <PageHeader
-      title="Dashboard"
-      description={`${greeting()}, today is ${todayLabel}`}
-      actions={
-        <span className="inline-flex items-center gap-1.5 rounded-full border border-border bg-card px-2.5 py-1 text-xs text-muted-foreground">
-          <ClockIcon className="size-3.5" />
-          {user.role === "employee" ? "Your records" : "Company overview"}
-        </span>
-      }
+    <DashboardHero
+      greeting={greeting()}
+      name={user.name}
+      companyName={user.companyName || "HCM Lite"}
+      dateLabel={todayLabel}
+      periodLabel={rangeLabel(
+        isEmployeeView ? month.start : safeFrom,
+        isEmployeeView ? today : to,
+      )}
+      scopeLabel={isEmployeeView ? "Your records" : "Company overview"}
     />
   );
 
@@ -257,48 +269,84 @@ function AnnouncementsCard() {
   const latestAnnouncements = listAnnouncements(3);
   return (
     <Card className="border-border">
-      <CardHeader>
-        <CardTitle>Announcements</CardTitle>
-        <CardDescription>Latest company-wide updates.</CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 border-b border-border pb-3">
+        <div className="min-w-0">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <MegaphoneIcon className="size-4 shrink-0 text-primary/80" />
+            Announcements
+          </CardTitle>
+          <CardDescription className="mt-1 text-xs">
+            Company-wide updates.
+          </CardDescription>
+        </div>
+        <Link
+          href="/announcements"
+          className="group inline-flex shrink-0 items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+        >
+          View all
+          <ArrowUpRightIcon className="size-3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+        </Link>
       </CardHeader>
-      <CardContent className="space-y-3">
+
+      <CardContent className="space-y-1.5">
         {latestAnnouncements.length === 0 ? (
-          <div className="rounded-lg border border-dashed border-border px-4 py-6 text-center">
-            <MegaphoneIcon className="mx-auto size-5 text-muted-foreground" />
-            <p className="mt-2 text-sm font-medium">No announcements yet</p>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Admins and HR will post company updates here.
+          <div className="rounded-lg border border-dashed border-border bg-muted/20 px-4 py-6 text-center">
+            <span className="mx-auto flex size-9 items-center justify-center rounded-full border border-border bg-background text-muted-foreground">
+              <MegaphoneIcon className="size-4" />
+            </span>
+            <p className="mt-3 text-sm font-medium">Nothing posted yet</p>
+            <p className="mx-auto mt-1 max-w-[17rem] text-xs leading-relaxed text-muted-foreground">
+              Company updates from your Admin or HR team will appear here.
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
-            {latestAnnouncements.map((announcement) => (
-              <div
-                key={announcement.id}
-                className="space-y-1 border-b border-border pb-3 last:border-0 last:pb-0"
-              >
-                <div className="flex items-start gap-1.5">
-                  {announcement.pinned ? (
-                    <PinIcon className="mt-0.5 size-3 shrink-0 text-primary" />
-                  ) : null}
-                  <p className="break-words text-sm font-medium">{announcement.title}</p>
-                </div>
-                <p className="line-clamp-2 break-words text-xs text-muted-foreground">
-                  {announcement.body}
+          latestAnnouncements.map((announcement) => (
+            <div
+              key={announcement.id}
+              className={cn(
+                "relative rounded-lg border px-3 py-2.5 transition-colors",
+                announcement.pinned
+                  ? "border-border bg-muted/50 pl-3.5"
+                  : "border-transparent hover:bg-muted/30",
+              )}
+            >
+              {announcement.pinned ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-y-2.5 left-0 w-[3px] rounded-r-full bg-primary"
+                />
+              ) : null}
+
+              <div className="flex items-start justify-between gap-2">
+                <p className="text-sm leading-snug font-medium break-words">
+                  {announcement.title}
                 </p>
-                <p className="text-[11px] text-muted-foreground">
-                  {announcement.authorName} · {relativeTime(announcement.createdAt)}
-                </p>
+                {announcement.pinned ? (
+                  <PinIcon
+                    aria-hidden="true"
+                    className="mt-0.5 size-3 shrink-0 text-primary"
+                  />
+                ) : null}
               </div>
-            ))}
-          </div>
+
+              <p className="mt-1 line-clamp-2 text-xs leading-relaxed break-words text-muted-foreground">
+                {announcement.body}
+              </p>
+
+              <div className="mt-2 flex min-w-0 items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span
+                  aria-hidden="true"
+                  className="flex size-4 shrink-0 items-center justify-center rounded-full bg-muted text-[9px] font-semibold uppercase"
+                >
+                  {announcement.authorName.slice(0, 1)}
+                </span>
+                <span className="truncate">{announcement.authorName}</span>
+                <span aria-hidden="true" className="h-1 w-1 shrink-0 rounded-full bg-border" />
+                <span className="shrink-0">{relativeTime(announcement.createdAt)}</span>
+              </div>
+            </div>
+          ))
         )}
-        <Link
-          href="/announcements"
-          className="inline-block text-xs font-medium text-primary underline-offset-4 hover:underline"
-        >
-          View all announcements
-        </Link>
       </CardContent>
     </Card>
   );
@@ -307,12 +355,25 @@ function AnnouncementsCard() {
 function AiTeaserCard() {
   return (
     <Card className="border-border">
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <span className="flex h-6 w-6 items-center justify-center rounded-sm bg-primary/10 text-primary">✦</span>
-          AI assistant
-        </CardTitle>
-        <CardDescription>Ask about your data. Coming in M7–M8.</CardDescription>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
+        <div className="min-w-0">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <span className="flex size-5 items-center justify-center rounded-md bg-primary/10 text-[11px] leading-none text-primary">
+              ✦
+            </span>
+            AI assistant
+          </CardTitle>
+          <CardDescription className="mt-1 text-xs">
+            Ask in plain language — answers come from your own records.
+          </CardDescription>
+        </div>
+        <Link
+          href="/ai"
+          className="group inline-flex shrink-0 items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+        >
+          Open
+          <ArrowUpRightIcon className="size-3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+        </Link>
       </CardHeader>
       <CardContent className="pt-0">
         <div className="flex flex-col gap-2 text-sm text-muted-foreground">
@@ -330,8 +391,8 @@ function AiTeaserCard() {
           </div>
         </div>
       </CardContent>
-      <CardFooter>
-        <span className="text-[10px] uppercase tracking-wider text-muted-foreground">AI-generated answers are labelled</span>
+      <CardFooter className="flex-col items-start gap-1">
+        <span className="text-[10px] tracking-wider text-muted-foreground uppercase">AI-generated answers are labelled</span>
       </CardFooter>
     </Card>
   );

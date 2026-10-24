@@ -6,7 +6,7 @@ import { PlusIcon, RotateCwIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { useApi } from "@/components/shared/use-api";
-import { LeaveApplyDialog } from "./leave-apply-dialog";
+import { LeaveApplyDialog, type LeavePrefill } from "./leave-apply-dialog";
 import { LeaveBalanceCards } from "./leave-balance-cards";
 import { MyLeaveHistory } from "./my-leave-history";
 import { SmartLeaveBox } from "./smart-leave-box";
@@ -14,8 +14,15 @@ import type { LeaveBalance, LeaveType } from "./types";
 
 export function MyLeaveView({ today }: { today: string }) {
   const [applyOpen, setApplyOpen] = useState(false);
+  const [prefill, setPrefill] = useState<LeavePrefill | null>(null);
   const [historyKey, setHistoryKey] = useState(0);
   const year = today.slice(0, 4);
+
+  /** Opens the apply dialog, optionally with an AI suggestion to review. */
+  function openApplyDialog(next: LeavePrefill | null = null) {
+    setPrefill(next);
+    setApplyOpen(true);
+  }
 
   const balancesApi = useApi<LeaveBalance[]>("/api/leave/balances", (json) =>
     Array.isArray(json.items)
@@ -47,14 +54,17 @@ export function MyLeaveView({ today }: { today: string }) {
         title="My leave"
         description="Your leave balances, requests, and history."
         actions={
-          <Button size="sm" onClick={() => setApplyOpen(true)}>
+          <Button size="sm" onClick={() => openApplyDialog()}>
             <PlusIcon />
             Apply for leave
           </Button>
         }
       />
 
-      <SmartLeaveBox />
+      <SmartLeaveBox
+        onParsed={openApplyDialog}
+        onFillManually={() => openApplyDialog()}
+      />
 
       <section className="space-y-2.5">
         <div className="flex items-center justify-between gap-2">
@@ -78,14 +88,14 @@ export function MyLeaveView({ today }: { today: string }) {
           loading={balancesApi.loading}
           error={balancesApi.error}
           onRetry={balancesApi.reload}
-          onApply={() => setApplyOpen(true)}
+          onApply={() => openApplyDialog()}
         />
       </section>
 
       <MyLeaveHistory
         key={historyKey}
         today={today}
-        onApply={() => setApplyOpen(true)}
+        onApply={() => openApplyDialog()}
         onChanged={balancesApi.reload}
       />
 
@@ -96,6 +106,7 @@ export function MyLeaveView({ today }: { today: string }) {
         onOpenChange={setApplyOpen}
         types={types}
         balances={balances}
+        prefill={prefill}
         onCreated={() => {
           balancesApi.reload();
           setHistoryKey((key) => key + 1);

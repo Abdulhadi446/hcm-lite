@@ -3,15 +3,21 @@
 import { Suspense, useState, useEffect, useCallback } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { toast } from "sonner"
-import { ArrowRightIcon, Building2Icon, CheckCircle2Icon, ShieldCheckIcon, SparklesIcon, UsersIcon, MailIcon, LockIcon } from "lucide-react"
+import {
+  ArrowLeftIcon,
+  ArrowRightIcon,
+  Building2Icon,
+  CheckCircle2Icon,
+  SparklesIcon,
+} from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Separator } from "@/components/ui/separator"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardDescription, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Skeleton } from "@/components/ui/skeleton"
+import { BrandMark, BrandPanel } from "@/components/brand/brand-panel"
+import { cn } from "@/lib/utils"
 
 type SetupStep = 1 | 2
 
@@ -28,16 +34,52 @@ interface AdminForm {
 
 export default function SetupPage() {
   return (
-    <Suspense fallback={<SetupSkeleton />}>
-      <SetupWizard />
-    </Suspense>
+    <div className="relative flex min-h-svh flex-col bg-background lg:h-svh lg:flex-row lg:overflow-hidden">
+      {/* Product panel — same surface as the sign-in screen, painted from the
+          static HTML so the first frame is already branded. */}
+      <BrandPanel className="hidden h-full shrink-0 lg:flex lg:w-[46%]" />
+
+      <div className="flex flex-1 flex-col lg:overflow-y-auto">
+        {/* Mobile brand bar */}
+        <div className="flex items-center border-b border-border px-5 py-4 lg:hidden">
+          <BrandMark />
+        </div>
+
+        <main className="flex flex-1 items-start justify-center px-5 py-9 sm:px-8 lg:items-center lg:px-14 lg:py-14">
+          <Suspense fallback={<SetupFormSkeleton />}>
+            <SetupWizard />
+          </Suspense>
+        </main>
+      </div>
+    </div>
   )
 }
 
-function SetupSkeleton() {
+function SetupFormSkeleton() {
   return (
-    <div className="flex min-h-screen items-center justify-center p-4">
-      <div className="h-[28rem] w-full max-w-5xl animate-pulse rounded-xl border border-border bg-muted/40" />
+    <div className="w-full max-w-[26rem] animate-pulse" aria-hidden="true">
+      <div className="flex items-baseline justify-between gap-3">
+        <div className="h-3 w-20 rounded bg-muted" />
+        <div className="h-3 w-24 rounded bg-muted" />
+      </div>
+      <div className="mt-3 flex items-center gap-1.5">
+        <div className="h-1 flex-1 rounded-full bg-primary/30" />
+        <div className="h-1 flex-1 rounded-full bg-muted" />
+      </div>
+      <div className="mt-6 h-7 w-56 rounded bg-muted" />
+      <div className="mt-3 h-4 w-full rounded bg-muted" />
+      <div className="mt-7 space-y-6">
+        <div className="space-y-2">
+          <div className="h-3 w-24 rounded bg-muted" />
+          <div className="h-10 w-full rounded-lg bg-muted" />
+        </div>
+        <div className="space-y-3 border-t border-border pt-6">
+          <div className="h-3 w-28 rounded bg-muted" />
+          <div className="h-10 w-full rounded-lg bg-muted sm:max-w-[10.5rem]" />
+          <div className="h-14 w-full rounded-lg bg-muted" />
+        </div>
+        <div className="h-10 w-full rounded-lg bg-primary/15" />
+      </div>
     </div>
   )
 }
@@ -154,254 +196,278 @@ function SetupWizard() {
   const showSuccess = searchParams.get("setup") === "success"
 
   return (
-    <div className="min-h-screen bg-background">
+    <>
       {showSuccess && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 backdrop-blur-sm">
-          <Card className="w-full max-w-sm p-8 text-center border-border shadow-xl">
-            <div className="flex h-14 w-14 items-center justify-center rounded-full bg-green-100 text-green-600 mx-auto mb-4">
-              <CheckCircle2Icon className="size-7" />
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-background/95 p-6 backdrop-blur-sm">
+          <Card className="animate-rise w-full max-w-sm items-center p-8 text-center">
+            <div className="flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
+              <CheckCircle2Icon className="size-6" />
             </div>
-            <CardTitle className="text-xl">Company created</CardTitle>
-            <CardDescription className="text-muted-foreground">
+            <CardTitle className="mt-4 text-xl">Company created</CardTitle>
+            <CardDescription>
               Your HCM Lite workspace is ready. Sign in with the admin account you just created.
             </CardDescription>
-            <Button className="w-full mt-6" onClick={() => router.push("/login")}>
+            <Button className="mt-6 h-10 w-full" onClick={() => router.push("/login")}>
               Go to sign in
             </Button>
           </Card>
         </div>
       )}
 
-      <div className="flex flex-col lg:flex-row h-screen overflow-hidden">
-        {/* Left: product panel */}
-        <div className="hidden lg:flex lg:w-1/2 flex-col bg-primary text-primary-foreground p-10">
-          <div className="flex items-center gap-2 mb-8">
-            <div className="flex h-8 w-8 items-center justify-center rounded-sm bg-primary-foreground text-primary text-xs font-medium">
-              HCM
-            </div>
-            <span className="text-xl font-bold tracking-tight">HCM Lite</span>
+      <div className="animate-rise w-full max-w-[26rem]">
+        {/* Step progress */}
+        <div>
+          <div className="flex items-baseline justify-between gap-3">
+            <p className="text-[11px] font-medium tracking-[0.2em] text-muted-foreground uppercase">
+              Step {step} of 2
+            </p>
+            <p className="text-xs text-muted-foreground">
+              {step === 1 ? "Company profile" : "Admin account"}
+            </p>
           </div>
-          <p className="text-primary-foreground/90 text-sm leading-relaxed mb-8 max-w-[420px]">
-            An AI-assisted HR system built for real teams. Manage employees, attendance,
-            leave, and payroll — from first-run setup to finalized payroll.
-          </p>
-
-          <div className="space-y-6 flex-1">
-            <div className="flex items-start gap-3">
-              <ShieldCheckIcon className="size-5 shrink-0 mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-sm">Three roles, one system</h3>
-                <p className="text-primary-foreground/80 text-xs mt-0.5">
-                  Admin, HR, and Employee — each with its own menu, data scope, and dashboard.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <UsersIcon className="size-5 shrink-0 mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-sm">Everything HR needs</h3>
-                <p className="text-primary-foreground/80 text-xs mt-0.5">
-                  Employees, attendance, leave, payroll, organization, announcements, and audit.
-                </p>
-              </div>
-            </div>
-            <div className="flex items-start gap-3">
-              <SparklesIcon className="size-5 shrink-0 mt-0.5" />
-              <div>
-                <h3 className="font-semibold text-sm">AI assistant</h3>
-                <p className="text-primary-foreground/80 text-xs mt-0.5">
-                  Answers only from your data via tool calling — dashboard summaries, smart leave,
-                  and policy Q&A, with answers labelled AI-generated.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <Separator className="my-8 border-white/20" />
-          <div className="text-xs text-primary-foreground/70 leading-relaxed">
-            Fresh install starts empty. Admin sets up the company, then HR registers employees
-            and everything flows from there.
+          <div className="mt-3 flex items-center gap-1.5">
+            <span className="h-1 flex-1 rounded-full bg-primary" />
+            <span
+              className={cn(
+                "h-1 flex-1 rounded-full transition-colors",
+                step === 2 ? "bg-primary" : "bg-border",
+              )}
+            />
           </div>
         </div>
 
-        {/* Right: form */}
-        <div className="flex flex-col lg:w-1/2">
-          <div className="flex-1 flex items-center justify-center p-8 lg:p-12">
-            <Card className="w-full max-w-md border-background shadow-lg">
-              <CardHeader className="flex flex-col lg:flex-row lg:items-start justify-between gap-4 pb-6">
+        <h1 className="mt-6 text-2xl font-semibold tracking-tight">
+          {step === 1 ? "Set up your company" : "Create admin account"}
+        </h1>
+        <p className="mt-1.5 text-sm leading-relaxed text-muted-foreground">
+          {step === 1
+            ? "Name your organization and set the working day. This takes about a minute."
+            : "The first Administrator gets full access to every module."}
+        </p>
+
+        <form onSubmit={handleSubmit} className="mt-7 space-y-7">
+          {serverError && (
+            <Alert variant="destructive" className="border-destructive/40">
+              <AlertTitle>Setup failed</AlertTitle>
+              <AlertDescription>{serverError}</AlertDescription>
+            </Alert>
+          )}
+
+          {step === 1 ? (
+            <>
+              <section className="space-y-4">
                 <div>
-                  <CardTitle className="text-xl font-semibold tracking-tight">
-                    {step === 1 ? "Set up your company" : "Create admin account"}
-                  </CardTitle>
-                  <CardDescription className="text-sm text-muted-foreground">
-                    {step === 1
-                      ? "Start by naming your organization."
-                      : "Create the first administrator account."}
-                  </CardDescription>
+                  <h2 className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground uppercase">
+                    Organization
+                  </h2>
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                    Shown across the workspace and on every payslip.
+                  </p>
                 </div>
-                <div className="flex gap-1">
-                  {step === 1 && (
-                    <div className="flex h-5 w-5 items-center justify-center rounded-full border text-[10px] font-medium">1</div>
-                  )}
-                  <div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary text-primary-foreground text-[10px] font-medium">
-                    {step === 1 ? "2" : "2"}
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-6 pt-0 lg:pt-2">
-                <form onSubmit={handleSubmit} className="space-y-5">
-                  {serverError && (
-                    <Alert variant="destructive" className="border-destructive/50">
-                      <AlertTitle>Setup failed</AlertTitle>
-                      <AlertDescription>{serverError}</AlertDescription>
-                    </Alert>
-                  )}
 
-                  {step === 1 ? (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="companyName">Company name</Label>
-                        <Input
-                          id="companyName"
-                          value={setup.companyName}
-                          onChange={(e) => {
-                            setSetup({ ...setup, companyName: e.target.value })
-                            clearError("companyName")
-                          }}
-                          placeholder="e.g. Acme Corporation"
-                          disabled={submitting}
-                          aria-invalid={!!errors.companyName}
-                        />
-                        {errors.companyName && (
-                          <p className="text-destructive text-xs">{errors.companyName}</p>
-                        )}
-                      </div>
-
-                      <div className="space-y-2 border-t pt-4">
-                        <Label htmlFor="officeStart">Office hours (defaults)</Label>
-                        <p className="text-xs text-muted-foreground">
-                          When the working day starts — lateness is measured from here. Grace period,
-                          half-day threshold and weekends are set later in Organization settings.
-                        </p>
-                        <div className="grid gap-3 sm:grid-cols-2">
-                          <div className="space-y-2">
-                            <Label htmlFor="officeStart">Starts at</Label>
-                            <Input
-                              id="officeStart"
-                              type="time"
-                              value={setup.officeStart}
-                              onChange={(e) => setSetup({ ...setup, officeStart: e.target.value })}
-                              disabled={submitting}
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="mt-8 flex justify-end">
-                        <Button
-                          type="submit"
-                          variant="default"
-                          className="w-full px-8"
-                          disabled={submitting}
-                        >
-                          {submitting ? "Creating…" : "Continue"}
-                          <ArrowRightIcon className="ml-2 size-4" />
-                        </Button>
-                      </div>
-                    </>
-                  ) : (
-                    <>
-                      <div className="space-y-2">
-                        <Label htmlFor="adminName">Full name</Label>
-                        <Input
-                          id="adminName"
-                          value={admin.name}
-                          onChange={(e) => {
-                            setAdmin({ ...admin, name: e.target.value })
-                            clearError("name")
-                          }}
-                          placeholder="e.g. Jane Doe"
-                          disabled={submitting}
-                          aria-invalid={!!errors.name}
-                        />
-                        {errors.name && <p className="text-destructive text-xs">{errors.name}</p>}
-                      </div>
-
-                      <div className="space-y-2">
-                        <div className="flex justify-between">
-                          <Label htmlFor="adminEmail">Work email</Label>
-                        </div>
-                        <Input
-                          id="adminEmail"
-                          type="email"
-                          value={admin.email}
-                          onChange={(e) => {
-                            setAdmin({ ...admin, email: e.target.value })
-                            clearError("email")
-                          }}
-                          placeholder="jane@acme.com"
-                          disabled={submitting}
-                          aria-invalid={!!errors.email}
-                        />
-                        {errors.email && <p className="text-destructive text-xs">{errors.email}</p>}
-                      </div>
-
-                      <div className="space-y-2">
-                        <Label htmlFor="adminPassword">Password</Label>
-                        <Input
-                          id="adminPassword"
-                          type="password"
-                          value={admin.password}
-                          onChange={(e) => {
-                            setAdmin({ ...admin, password: e.target.value })
-                            clearError("password")
-                          }}
-                          placeholder="••••••••"
-                          disabled={submitting}
-                          aria-invalid={!!errors.password}
-                        />
-                        {errors.password && (
-                          <p className="text-destructive text-xs">{errors.password}</p>
-                        )}
-                        <p className="text-xs text-muted-foreground">
-                          At least 8 characters.
-                        </p>
-                      </div>
-
-                      <div className="mt-8 flex justify-end">
-                        <Button
-                          type="submit"
-                          variant="default"
-                          className="w-full px-8"
-                          disabled={submitting}
-                        >
-                          {submitting ? "Creating account…" : "Create admin account"}
-                          <ArrowRightIcon className="ml-2 size-4" />
-                        </Button>
-                      </div>
-                    </>
-                  )}
-                </form>
-              </CardContent>
-              <CardFooter className="border-t border-background pt-6">
-                <p className="text-xs text-muted-foreground text-center">
-                  Already set up?{" "}
-                  <a
-                    href="/login"
-                    className="text-primary font-medium hover:underline"
-                    onClick={(e) => {
-                      e.preventDefault()
-                      router.push("/login")
+                <div className="space-y-2">
+                  <Label htmlFor="companyName">Company name</Label>
+                  <Input
+                    id="companyName"
+                    value={setup.companyName}
+                    onChange={(e) => {
+                      setSetup({ ...setup, companyName: e.target.value })
+                      clearError("companyName")
                     }}
-                  >
-                    Sign in
-                  </a>
+                    placeholder="e.g. Acme Corporation"
+                    autoComplete="organization"
+                    disabled={submitting}
+                    aria-invalid={!!errors.companyName}
+                    className="h-10 text-sm"
+                  />
+                  {errors.companyName && (
+                    <p className="text-xs text-destructive">{errors.companyName}</p>
+                  )}
+                </div>
+              </section>
+
+              <section className="space-y-4 border-t border-border pt-6">
+                <div>
+                  <h2 className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground uppercase">
+                    Working hours
+                  </h2>
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                    Lateness is measured from the start of the day.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="officeStart">Day starts at</Label>
+                  <Input
+                    id="officeStart"
+                    type="time"
+                    value={setup.officeStart}
+                    onChange={(e) => setSetup({ ...setup, officeStart: e.target.value })}
+                    disabled={submitting}
+                    className="h-10 w-full text-sm sm:max-w-[10.5rem]"
+                  />
+                </div>
+
+                <p className="flex items-start gap-2 rounded-lg border border-border bg-muted/40 p-3 text-xs leading-relaxed text-muted-foreground">
+                  <SparklesIcon
+                    aria-hidden="true"
+                    className="mt-0.5 size-3.5 shrink-0 text-primary"
+                  />
+                  <span>
+                    A <span className="font-medium text-foreground">15-minute grace period</span> is
+                    applied automatically. Weekends and the half-day threshold can be tuned later in
+                    Organization.
+                  </span>
                 </p>
-              </CardFooter>
-            </Card>
-          </div>
-        </div>
+              </section>
+
+              <div className="space-y-3">
+                <Button type="submit" size="lg" className="h-10 w-full" disabled={submitting}>
+                  {submitting ? "Creating…" : "Continue"}
+                  <ArrowRightIcon className="ml-1 size-4" />
+                </Button>
+                <p className="text-center text-xs text-muted-foreground">
+                  Everything can be changed later.
+                </p>
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border border-border bg-muted/40 px-3 py-2.5 text-xs">
+                <Building2Icon
+                  aria-hidden="true"
+                  className="size-3.5 shrink-0 text-muted-foreground"
+                />
+                <span className="font-medium break-words text-foreground">
+                  {setup.companyName || "Your company"}
+                </span>
+                <span aria-hidden="true" className="text-border">
+                  |
+                </span>
+                <span className="text-muted-foreground">Day starts {setup.officeStart}</span>
+              </div>
+
+              <section className="space-y-4">
+                <div>
+                  <h2 className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground uppercase">
+                    Administrator
+                  </h2>
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                    Your name appears on approvals and announcements.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="adminName">Full name</Label>
+                  <Input
+                    id="adminName"
+                    value={admin.name}
+                    onChange={(e) => {
+                      setAdmin({ ...admin, name: e.target.value })
+                      clearError("name")
+                    }}
+                    placeholder="e.g. Jane Doe"
+                    autoComplete="name"
+                    disabled={submitting}
+                    aria-invalid={!!errors.name}
+                    className="h-10 text-sm"
+                  />
+                  {errors.name && <p className="text-xs text-destructive">{errors.name}</p>}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="adminEmail">Work email</Label>
+                  <Input
+                    id="adminEmail"
+                    type="email"
+                    value={admin.email}
+                    onChange={(e) => {
+                      setAdmin({ ...admin, email: e.target.value })
+                      clearError("email")
+                    }}
+                    placeholder="jane@acme.com"
+                    autoComplete="email"
+                    disabled={submitting}
+                    aria-invalid={!!errors.email}
+                    className="h-10 text-sm"
+                  />
+                  {errors.email && <p className="text-xs text-destructive">{errors.email}</p>}
+                </div>
+              </section>
+
+              <section className="space-y-4 border-t border-border pt-6">
+                <div>
+                  <h2 className="text-[11px] font-medium tracking-[0.16em] text-muted-foreground uppercase">
+                    Sign-in credentials
+                  </h2>
+                  <p className="mt-1.5 text-xs leading-relaxed text-muted-foreground">
+                    You can change this from your profile at any time.
+                  </p>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="adminPassword">Password</Label>
+                  <Input
+                    id="adminPassword"
+                    type="password"
+                    value={admin.password}
+                    onChange={(e) => {
+                      setAdmin({ ...admin, password: e.target.value })
+                      clearError("password")
+                    }}
+                    placeholder="••••••••"
+                    autoComplete="new-password"
+                    disabled={submitting}
+                    aria-invalid={!!errors.password}
+                    className="h-10 text-sm"
+                  />
+                  {errors.password ? (
+                    <p className="text-xs text-destructive">{errors.password}</p>
+                  ) : (
+                    <p className="text-xs text-muted-foreground">At least 8 characters.</p>
+                  )}
+                </div>
+              </section>
+
+              <div className="flex items-center gap-2">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="lg"
+                  className="h-10"
+                  disabled={submitting}
+                  onClick={() => {
+                    setStep(1)
+                    setErrors({})
+                    setServerError(null)
+                  }}
+                >
+                  <ArrowLeftIcon className="size-4" />
+                  Back
+                </Button>
+                <Button type="submit" size="lg" className="h-10 flex-1" disabled={submitting}>
+                  {submitting ? "Creating account…" : "Create admin account"}
+                  <ArrowRightIcon className="ml-1 size-4" />
+                </Button>
+              </div>
+            </>
+          )}
+        </form>
+
+        <p className="mt-7 border-t border-border pt-5 text-xs text-muted-foreground">
+          Already set up?{" "}
+          <a
+            href="/login"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+            onClick={(e) => {
+              e.preventDefault()
+              router.push("/login")
+            }}
+          >
+            Sign in
+          </a>
+        </p>
       </div>
-    </div>
+    </>
   )
 }

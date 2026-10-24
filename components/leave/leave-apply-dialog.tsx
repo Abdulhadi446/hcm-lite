@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CalendarDaysIcon, TriangleAlertIcon } from "lucide-react";
+import { CalendarDaysIcon, SparklesIcon, TriangleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Input } from "@/components/ui/input";
@@ -18,6 +18,13 @@ import { apiFetch, readableError } from "@/components/shared/api";
 import { formatDate } from "@/components/shared/format";
 import { countWorkingDays, type LeaveBalance, type LeaveType } from "./types";
 
+export type LeavePrefill = {
+  leaveTypeId: number;
+  startDate: string;
+  endDate: string;
+  reason: string;
+};
+
 export function LeaveApplyDialog({
   open,
   today,
@@ -25,6 +32,7 @@ export function LeaveApplyDialog({
   types,
   balances,
   onCreated,
+  prefill,
 }: {
   open: boolean;
   today: string;
@@ -32,11 +40,13 @@ export function LeaveApplyDialog({
   types: LeaveType[];
   balances: LeaveBalance[];
   onCreated: () => void;
+  /** Optional AI suggestion; the fields stay fully editable. */
+  prefill?: LeavePrefill | null;
 }) {
-  const [leaveTypeId, setLeaveTypeId] = useState("");
-  const [startDate, setStartDate] = useState(today);
-  const [endDate, setEndDate] = useState(today);
-  const [reason, setReason] = useState("");
+  const [leaveTypeId, setLeaveTypeId] = useState(prefill ? String(prefill.leaveTypeId) : "");
+  const [startDate, setStartDate] = useState(prefill?.startDate || today);
+  const [endDate, setEndDate] = useState(prefill?.endDate || today);
+  const [reason, setReason] = useState(prefill?.reason ?? "");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldError, setFieldError] = useState<string | null>(null);
@@ -114,6 +124,20 @@ export function LeaveApplyDialog({
       onSubmit={submit}
       wide
     >
+      {prefill ? (
+        <div className="flex items-start gap-2 rounded-lg border border-primary/25 bg-primary/5 px-2.5 py-2">
+          <SparklesIcon className="mt-0.5 size-3.5 shrink-0 text-primary" />
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-primary">
+              AI-suggested — review before submitting
+            </p>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">
+              AI-generated from your sentence. Check the type, dates and reason before you send.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
       {fieldError ? (
         <p
           role="alert"

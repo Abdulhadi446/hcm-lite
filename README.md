@@ -1,11 +1,53 @@
-# HCM Lite
+<p align="center">
+  <img src="https://raw.githubusercontent.com/Abdulhadi446/hcm-lite/main/public/brand/icon-192.png" width="76" alt="HCM Lite" />
+</p>
 
-An AI-assisted Human Capital Management web app: three roles, nine modules, and an assistant that
-answers **only** from the data in your database via tool calling.
+<h1 align="center">HCM Lite</h1>
 
-**Live demo:** https://hcm-lite.thetrillioniar.me — opens on the first-run setup wizard, with an empty database.
+<p align="center">
+  <strong>AI-assisted human capital management</strong> — Admin, HR and Employee roles; nine modules;
+  an assistant that answers <em>only</em> from your own database via tool calling.
+</p>
+
+<p align="center">
+  <a href="https://hcm-lite.thetrillioniar.me"><img alt="Live demo" src="https://img.shields.io/badge/live%20demo-hcm--lite.thetrillioniar.me-22c55e?style=flat-square" /></a>
+  <img alt="Next.js 16" src="https://img.shields.io/badge/Next.js-16.4-000000?style=flat-square&logo=nextdotjs&logoColor=white" />
+  <img alt="SQLite" src="https://img.shields.io/badge/SQLite-node%3Asqlite-003B57?style=flat-square&logo=sqlite&logoColor=white" />
+  <img alt="AI" src="https://img.shields.io/badge/AI-OpenRouter%20%C2%B7%20tool%20calling-8b5cf6?style=flat-square" />
+  <img alt="Tests" src="https://img.shields.io/badge/E2E-18%2F18%20passing-22c55e?style=flat-square" />
+</p>
+
+<p align="center">
+  <a href="https://hcm-lite.thetrillioniar.me"><b>Live demo</b></a> ·
+  <a href="docs/DEMO.md">Demo script</a> ·
+  <a href="#architecture">Architecture</a> ·
+  <a href="#sample-data-exploring-or-judging">Sample logins</a>
+</p>
+
+<p align="center">
+  <img src="docs/screenshots/dashboard-admin.png" alt="Admin dashboard: headcount, attendance rate, late %, payroll cost and attendance trend" width="880" />
+</p>
+
+**Live demo:** https://hcm-lite.thetrillioniar.me — the deployed instance ships with sample data so every
+screen has something to show. Reset it to a blank install (setup wizard) with
+`bash scripts/reset-deployed-db.sh`.
 
 Built for the Saylani Hackathon (24 Oct 2026).
+
+---
+
+## Screenshots
+
+| | |
+|---|---|
+| **Attendance board (HR/Admin)** — daily status per employee, corrections inbox<br/><img src="docs/screenshots/attendance-board.png" width="440" /> | **Payroll run** — proration, deductions, tax slabs, finalize & lock<br/><img src="docs/screenshots/payroll-runs.png" width="440" /> |
+| **AI assistant** — answers built from tool results, labelled AI-generated<br/><img src="docs/screenshots/ai-assistant.png" width="440" /> | **My attendance (Employee)** — server-stamped punches, month calendar, 40 h week<br/><img src="docs/screenshots/my-attendance.png" width="440" /> |
+| **Leave** — approval inbox with working-day counts and balances<br/><img src="docs/screenshots/leave-requests.png" width="440" /> | **Organization** — company settings, departments, designations, leave types, holidays, logins<br/><img src="docs/screenshots/organization.png" width="440" /> |
+
+<p align="center">
+  <img src="docs/screenshots/dashboard-mobile.png" alt="Dashboard on a 390 px viewport" width="260" />
+  <br/><sub>Responsive down to 390 px — no horizontal overflow on any page.</sub>
+</p>
 
 ---
 
@@ -152,6 +194,7 @@ Admin-only (`POST /api/demo/seed`) and refuses to run once employees exist.
 | `OPENAI_BASE_URL` | Defaults to `https://openrouter.ai/api/v1` |
 | `OPENAI_MODEL` | Defaults to `openrouter/free` (verified to support tool calling) |
 | `APP_URL` | Public app URL sent as the AI provider's `HTTP-Referer` (defaults to `http://localhost:3000`) |
+| `FACE_MATCH_THRESHOLD` | Cosine similarity required for a camera check-in to match the enrolled face (defaults to `0.62`) |
 | `COMPANY_NAME`, `ADMIN_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Optional first-run bypass; when email and password are set, the company and Admin are created automatically |
 
 `OPENROUTER_API_KEY` is also accepted as a fallback for `OPENAI_API_KEY`. The AI assistant is
@@ -181,6 +224,9 @@ Hosted on `tests2` behind a Cloudflare named tunnel (`hcm-lite`), with a persist
 
 The remote host needs Node 22 (`/opt/node22`) because of `node:sqlite`; the tunnel config lives at
 `~/.cloudflared/hcm-lite.yml`.
+
+The face models (~10 MB) are not committed: `postinstall` copies them from `@vladmandic/human` into
+`public/models/`, so `npm ci` on the server prepares them and `/models/...` is served from the build.
 
 ## Verification
 

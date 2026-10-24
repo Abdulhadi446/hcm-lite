@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS attendance (
   check_out_at TEXT,
   status TEXT,
   source TEXT CHECK (source IN ('web', 'camera', 'correction')),
+  verification_method TEXT,
   note TEXT,
   UNIQUE (employee_id, date)
 );
@@ -171,4 +172,38 @@ CREATE TABLE IF NOT EXISTS ai_logs (
   tools_json TEXT,
   answer TEXT,
   created_at TEXT NOT NULL
+);
+
+-- Face-verified attendance (docs/FACE-ATTENDANCE-CONTRACT.md). Additive.
+CREATE TABLE IF NOT EXISTS face_templates (
+  employee_id INTEGER PRIMARY KEY REFERENCES employees(id) ON DELETE CASCADE,
+  embedding   TEXT NOT NULL,          -- JSON, never returned by any API
+  model       TEXT NOT NULL,
+  dimensions  INTEGER NOT NULL,
+  version     INTEGER NOT NULL DEFAULT 1,
+  created_at  TEXT NOT NULL,
+  updated_at  TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS face_challenges (
+  id         TEXT PRIMARY KEY,
+  user_id    INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  purpose    TEXT NOT NULL CHECK (purpose IN ('enroll','check-in','check-out')),
+  nonce      TEXT NOT NULL,
+  expires_at TEXT NOT NULL,
+  used_at    TEXT,
+  created_at TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS face_verifications (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_id       INTEGER NOT NULL,
+  employee_id   INTEGER,
+  action        TEXT NOT NULL,       -- enroll | check-in | check-out
+  matched       INTEGER NOT NULL,    -- 0/1
+  score         REAL,                -- cosine similarity, null when no template
+  reason        TEXT,                -- null on success, else machine code
+  distance_m    REAL,
+  accuracy_m    REAL,
+  created_at    TEXT NOT NULL
 );

@@ -185,6 +185,28 @@ export const correctionReviewSchema = z.object({
   comment: z.string().trim().max(500, "Comment is too long").optional(),
 });
 
+// ------------------------------- face attendance (M9 contract, additive)
+
+/**
+ * Face payloads are intentionally validated only for shape here: the service
+ * must answer `422 invalid_embedding` / `422 invalid_location`, not a generic
+ * 400, so raw values are passed through as `unknown`.
+ */
+export const faceChallengeSchema = z.object({
+  purpose: z.enum(["enroll", "check-in", "check-out"]),
+});
+
+export const faceEnrollSchema = z.object({
+  challengeId: z.string().trim().min(1, "Challenge is required"),
+  embedding: z.unknown(),
+});
+
+export const facePunchSchema = z.object({
+  challengeId: z.string().trim().min(1, "Challenge is required"),
+  embedding: z.unknown(),
+  location: z.unknown().optional(),
+});
+
 // ------------------------------------------------------------ M4 leave
 
 export const leaveRequestCreateSchema = z.object({
@@ -229,6 +251,9 @@ export type AnnouncementCreateInput = z.output<typeof announcementCreateSchema>;
 export type AnnouncementPatchInput = z.output<typeof announcementPatchSchema>;
 export type CorrectionCreateInput = z.output<typeof correctionCreateSchema>;
 export type CorrectionReviewInput = z.output<typeof correctionReviewSchema>;
+export type FaceChallengeInput = z.output<typeof faceChallengeSchema>;
+export type FaceEnrollInput = z.output<typeof faceEnrollSchema>;
+export type FacePunchInput = z.output<typeof facePunchSchema>;
 export type LeaveRequestCreateInput = z.output<typeof leaveRequestCreateSchema>;
 export type LeaveReviewInput = z.output<typeof leaveReviewSchema>;
 export type PayrollRunCreateInput = z.output<typeof payrollRunCreateSchema>;

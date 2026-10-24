@@ -64,3 +64,6 @@ next-env.d.ts
 
 # TestSprite MCP scratch
 testsprite_tests/
+
+# vendored face models (copied from node_modules by postinstall)
+/public/models/

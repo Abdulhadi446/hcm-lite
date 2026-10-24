@@ -86,3 +86,49 @@ body {
   font-family: var(--font-inter), system-ui, -apple-system, BlinkMacSystemFont,
     "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
+
+/* --------------------------------------------------------------------------
+   Brand surfaces — shared by the public screens (login, setup) and the
+   dashboard header. Everything is mixed from theme tokens so the textures
+   follow the palette instead of hard-coding a colour.
+   -------------------------------------------------------------------------- */
+
+/* Fine paper grid. Uses currentColor, so it reads as light lines on the ink
+   brand panel and as faint ink lines on white cards. */
+@utility brand-grid {
+  background-image:
+    linear-gradient(
+      to right,
+      color-mix(in oklch, currentColor 8%, transparent) 1px,
+      transparent 1px
+    ),
+    linear-gradient(
+      to bottom,
+      color-mix(in oklch, currentColor 8%, transparent) 1px,
+      transparent 1px
+    );
+  background-size: 2.75rem 2.75rem;
+  background-position: -1px -1px;
+}
+
+@keyframes brand-rise {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 10px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* One orchestrated entrance per screen; stagger it with inline animation-delay. */
+@utility animate-rise {
+  animation: brand-rise 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-rise {
+    animation: none;
+  }
+}

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   CheckIcon,
+  CrosshairIcon,
   InfoIcon,
   LockIcon,
   MapPinIcon,
@@ -154,6 +155,7 @@ export function CompanyTab({ canEdit }: { canEdit: boolean }) {
   const [baseline, setBaseline] = useState("");
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [pending, setPending] = useState(false);
+  const [locating, setLocating] = useState(false);
 
   useEffect(() => {
     if (!data) return;
@@ -219,6 +221,34 @@ export function CompanyTab({ canEdit }: { canEdit: boolean }) {
     } finally {
       setPending(false);
     }
+  };
+
+  const useCurrentLocation = () => {
+    if (!canEdit) return;
+    if (typeof navigator === "undefined" || !navigator.geolocation) {
+      toast.error("This browser can't share a location.");
+      return;
+    }
+    setLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setLocating(false);
+        update({
+          officeLat: position.coords.latitude.toFixed(6),
+          officeLng: position.coords.longitude.toFixed(6),
+        });
+        toast.success("Pin set to your position — save to apply.");
+      },
+      (error) => {
+        setLocating(false);
+        toast.error(
+          error.code === error.PERMISSION_DENIED
+            ? "Location permission was denied."
+            : "Couldn't read your location. Try again outdoors.",
+        );
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 },
+    );
   };
 
   const radius = Number(form.radiusM);
@@ -441,7 +471,7 @@ export function CompanyTab({ canEdit }: { canEdit: boolean }) {
               Office geofence
             </h2>
             <p className="mt-0.5 text-xs text-muted-foreground">
-              Used for camera check-in once attendance goes live.
+              Camera check-ins are verified against this pin and radius.
             </p>
           </div>
 
@@ -503,6 +533,24 @@ export function CompanyTab({ canEdit }: { canEdit: boolean }) {
                 />
               </Field>
             </div>
+
+            {canEdit ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={useCurrentLocation}
+                  disabled={pending || locating}
+                  className="gap-1.5"
+                >
+                  <CrosshairIcon className={cn("size-3.5", locating && "animate-spin")} />
+                  {locating ? "Locating…" : "Use my current location"}
+                </Button>
+                <span className="text-[11px] text-muted-foreground">
+                  Saves the pin at your position — handy while on site.
+                </span>
+              </div>
+            ) : null}
 
             <Field
               label="Radius (metres)"

@@ -41,6 +41,8 @@ export type Attendance = {
   checkOutAt: string | null;
   status: AttendanceStatus;
   workedMinutes: number | null;
+  source: string | null;
+  verificationMethod: string | null;
 };
 
 export type AttendanceDay = {
@@ -96,6 +98,8 @@ type AttendanceRow = {
   check_in_at: string | null;
   check_out_at: string | null;
   status: string | null;
+  source: string | null;
+  verification_method: string | null;
 };
 
 function mapAttendance(row: AttendanceRow): Attendance {
@@ -107,6 +111,8 @@ function mapAttendance(row: AttendanceRow): Attendance {
     checkOutAt: row.check_out_at,
     status: (row.status ?? (row.check_out_at ? "present" : "missing_checkout")) as AttendanceStatus,
     workedMinutes: minutesBetween(row.check_in_at, row.check_out_at),
+    source: row.source ?? null,
+    verificationMethod: row.verification_method ?? null,
   };
 }
 
@@ -139,7 +145,8 @@ export function computeStatus(
 
 function rowFor(employeeId: number, date: string): AttendanceRow | undefined {
   return queryOne<AttendanceRow>(
-    "SELECT id, employee_id, date, check_in_at, check_out_at, status FROM attendance WHERE employee_id = ? AND date = ?",
+    `SELECT id, employee_id, date, check_in_at, check_out_at, status, source, verification_method
+       FROM attendance WHERE employee_id = ? AND date = ?`,
     employeeId,
     date
   );
@@ -147,7 +154,18 @@ function rowFor(employeeId: number, date: string): AttendanceRow | undefined {
 
 // ------------------------------------------------------------ check in/out
 
-export function checkIn(user: SessionUser): Attendance {
+/**
+ * Optional punch metadata. Face-verified punches pass `source: "camera"` and
+ * `verificationMethod: "face"`; they also suppress the generic audit row and
+ * write their own `attendance.face_check_in|face_check_out` entry.
+ */
+export type PunchOptions = {
+  source?: "web" | "camera";
+  verificationMethod?: string | null;
+  audit?: boolean;
+};
+
+export function checkIn(user: SessionUser, options: PunchOptions = {}): Attendance {
   const employeeId = requireEmployeeId(user);
   const date = todayIso();
   assertDayUnlocked(date);
@@ -157,24 +175,28 @@ export function checkIn(user: SessionUser): Attendance {
   }
 
   const result = run(
-    `INSERT INTO attendance (employee_id, date, check_in_at, check_out_at, status, source, note)
-     VALUES (?, ?, ?, NULL, 'missing_checkout', 'web', NULL)`,
+    `INSERT INTO attendance (employee_id, date, check_in_at, check_out_at, status, source, verification_method, note)
+     VALUES (?, ?, ?, NULL, 'missing_checkout', ?, ?, NULL)`,
     employeeId,
     date,
-    nowIso()
+    nowIso(),
+    options.source ?? "web",
+    options.verificationMethod ?? null
   );
   const attendance = mapAttendance(rowFor(employeeId, date)!);
-  logAudit({
-    actorId: user.id,
-    action: "create",
-    entity: "attendance",
-    entityId: Number(result.lastInsertRowid),
-    after: attendance,
-  });
+  if (options.audit !== false) {
+    logAudit({
+      actorId: user.id,
+      action: "create",
+      entity: "attendance",
+      entityId: Number(result.lastInsertRowid),
+      after: attendance,
+    });
+  }
   return attendance;
 }
 
-export function checkOut(user: SessionUser): Attendance {
+export function checkOut(user: SessionUser, options: PunchOptions = {}): Attendance {
   const employeeId = requireEmployeeId(user);
   const date = todayIso();
   assertDayUnlocked(date);
@@ -185,21 +207,34 @@ export function checkOut(user: SessionUser): Attendance {
 
   const checkOutAt = nowIso();
   const status = computeStatus(row.check_in_at, checkOutAt, settingsOrThrow());
-  run(
-    "UPDATE attendance SET check_out_at = ?, status = ? WHERE id = ?",
-    checkOutAt,
-    status,
-    row.id
-  );
+  if (options.source) {
+    run(
+      "UPDATE attendance SET check_out_at = ?, status = ?, source = ?, verification_method = ? WHERE id = ?",
+      checkOutAt,
+      status,
+      options.source,
+      options.verificationMethod ?? null,
+      row.id
+    );
+  } else {
+    run(
+      "UPDATE attendance SET check_out_at = ?, status = ? WHERE id = ?",
+      checkOutAt,
+      status,
+      row.id
+    );
+  }
   const after = mapAttendance(rowFor(employeeId, date)!);
-  logAudit({
-    actorId: user.id,
-    action: "update",
-    entity: "attendance",
-    entityId: row.id,
-    before: mapAttendance(row),
-    after,
-  });
+  if (options.audit !== false) {
+    logAudit({
+      actorId: user.id,
+      action: "update",
+      entity: "attendance",
+      entityId: row.id,
+      before: mapAttendance(row),
+      after,
+    });
+  }
   return after;
 }
 

@@ -10,7 +10,9 @@ import { api, readableError } from "./api";
  */
 function useFetch<T>(url: string, select: (json: Record<string, unknown>) => T) {
   const selectRef = useRef(select);
-  selectRef.current = select;
+  useEffect(() => {
+    selectRef.current = select;
+  }, [select]);
 
   const [data, setData] = useState<T | null>(null);
   const [error, setError] = useState<string | null>(null);

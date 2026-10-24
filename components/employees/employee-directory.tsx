@@ -157,6 +157,8 @@ export function EmployeeDirectory({ role }: { role: Role }) {
                 <UploadIcon />
                 Import CSV
               </Link>
+              {/* CSV download: a plain anchor streams the file, Link would prefetch it. */}
+              {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
               <a
                 href="/api/employees/export"
                 className={buttonVariants({ variant: "outline", size: "sm" })}

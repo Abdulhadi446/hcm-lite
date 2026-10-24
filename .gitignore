@@ -58,3 +58,6 @@ next-env.d.ts
 # agent logs
 /.agent-logs/*
 !/.agent-logs/.gitkeep
+
+# local scratch
+.tmp/

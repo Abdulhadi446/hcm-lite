@@ -17,6 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 import { ApiRequestError, api, readableError } from "./api";
 import { ErrorPanel, Field } from "./org-ui";
+import { SampleDataCard } from "./sample-data-card";
 import type { Settings } from "./types";
 import { useObject } from "./use-resource";
 
@@ -534,6 +535,8 @@ export function CompanyTab({ canEdit }: { canEdit: boolean }) {
           </div>
         </section>
       </div>
+
+      {canEdit ? <SampleDataCard /> : null}
     </div>
   );
 }

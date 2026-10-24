@@ -112,7 +112,8 @@ Requires **Node 22+** (for `node:sqlite`).
 
 ```bash
 npm install
-cp .env.example .env      # fill in OPENAI_API_KEY; AUTH_SECRET strongly recommended
+cp .env.example .env
+# Edit .env and add an OpenRouter key if you want to use the AI assistant.
 npm run dev               # http://localhost:3000
 ```
 
@@ -120,6 +121,17 @@ Open the app: it redirects to `/setup`, where you create the company and the fir
 Then, as Admin, add departments, designations, leave types and holidays, and create an HR login
 (Organization → Logins). Sign in as HR to register employees — each registration returns a one-time
 temporary password that the employee must change on first sign-in.
+
+For a production build:
+
+```bash
+npm run lint
+npm run build
+npm start
+```
+
+The SQLite database is created automatically on first access. To start over locally, stop the
+development server and remove `dev.db` (and its `-wal`/`-shm` files).
 
 ### Sample data (exploring or judging)
 
@@ -139,7 +151,11 @@ Admin-only (`POST /api/demo/seed`) and refuses to run once employees exist.
 | `OPENAI_API_KEY` | OpenRouter (or any OpenAI-compatible) key — server-side only |
 | `OPENAI_BASE_URL` | Defaults to `https://openrouter.ai/api/v1` |
 | `OPENAI_MODEL` | Defaults to `openrouter/free` (verified to support tool calling) |
-| `COMPANY_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Optional first-run bypass; leave unset to always start with the setup wizard |
+| `APP_URL` | Public app URL sent as the AI provider's `HTTP-Referer` (defaults to `http://localhost:3000`) |
+| `COMPANY_NAME`, `ADMIN_NAME`, `ADMIN_EMAIL`, `ADMIN_PASSWORD` | Optional first-run bypass; when email and password are set, the company and Admin are created automatically |
+
+`OPENROUTER_API_KEY` is also accepted as a fallback for `OPENAI_API_KEY`. The AI assistant is
+optional: the HR, attendance, leave, payroll, dashboard and audit features work without an AI key.
 
 ## AI assistant
 
@@ -188,3 +204,8 @@ Shipped: the nine modules above, end to end, from an empty database.
 
 Not shipped (out of scope by decision): camera/geofence attendance, email/SMS delivery, multi-company
 tenancy, recruitment, performance, documents, org chart, mobile app, and editing a finalized payroll run.
+
+## License
+
+This project was created for the Saylani Hackathon. Add the repository's chosen license here before
+publishing it for reuse.

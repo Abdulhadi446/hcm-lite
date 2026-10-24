@@ -1,17 +1,15 @@
-import { PagePlaceholder } from "@/components/page-placeholder"
+import { redirect } from "next/navigation";
 
-export default function AttendancePage() {
-  return (
-    <PagePlaceholder
-      title="Attendance"
-      purpose="Check-in/out tracking and the daily attendance board."
-      capabilities={[
-        "Employee web check-in / check-out (server-stamped time).",
-        "One record per day; a second check-in returns 409.",
-        "Late / half-day / absent / missing-checkout status rules.",
-        "Daily attendance board for HR.",
-        "Attendance correction request and approval.",
-      ]}
-    />
-  )
+import { getSessionUser } from "@/lib/auth";
+import { todayIso } from "@/lib/dates";
+import { AttendanceBoard } from "@/components/attendance/attendance-board";
+
+export default async function AttendancePage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
+  // Employees track their own days — the board is a manager view.
+  if (user.role === "employee") redirect("/my-attendance");
+
+  return <AttendanceBoard role={user.role} today={todayIso()} />;
 }

@@ -1,15 +1,15 @@
-import { PagePlaceholder } from "@/components/page-placeholder"
+import { redirect } from "next/navigation";
 
-export default function MyLeavePage() {
-  return (
-    <PagePlaceholder
-      title="My Leave"
-      purpose="Your own leave balance, applications, and history."
-      capabilities={[
-        "View your leave balance.",
-        "Apply for and cancel leave.",
-        "View your leave history and status.",
-      ]}
-    />
-  )
+import { getSessionUser } from "@/lib/auth";
+import { todayIso } from "@/lib/dates";
+import { MyLeaveView } from "@/components/leave/my-leave-view";
+
+export default async function MyLeavePage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
+  // HR and admins review leave on the team page.
+  if (user.role !== "employee") redirect("/leave");
+
+  return <MyLeaveView today={todayIso()} />;
 }

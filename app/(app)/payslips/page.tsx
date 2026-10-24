@@ -1,15 +1,14 @@
-import { PagePlaceholder } from "@/components/page-placeholder"
+import { redirect } from "next/navigation";
 
-export default function PayslipsPage() {
-  return (
-    <PagePlaceholder
-      title="Payslips"
-      purpose="Your monthly payslips and pay history."
-      capabilities={[
-        "View and download payslip PDFs.",
-        "Pay history by month.",
-        "Notification when a payslip is published.",
-      ]}
-    />
-  )
+import { getSessionUser } from "@/lib/auth";
+import { PayslipsView } from "@/components/payroll/payslips-view";
+
+export default async function PayslipsPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
+  // HR and admins manage runs; payslips here are the employee's own.
+  if (user.role !== "employee") redirect("/payroll");
+
+  return <PayslipsView />;
 }

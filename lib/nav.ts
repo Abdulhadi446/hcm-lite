@@ -22,6 +22,7 @@ export const NAV_BY_ROLE: Record<string, NavItem[]> = {
     { path: "/attendance", label: "Attendance", icon: "Clock" },
     { path: "/leave", label: "Leave", icon: "Calendar" },
     { path: "/payroll", label: "Payroll", icon: "CreditCard" },
+    { path: "/organization", label: "Organization", icon: "Building" },
     { path: "/announcements", label: "Announcements", icon: "Megaphone" },
     { path: "/ai", label: "AI Assistant", icon: "Bot" },
   ],

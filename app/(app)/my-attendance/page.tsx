@@ -1,16 +1,15 @@
-import { PagePlaceholder } from "@/components/page-placeholder"
+import { redirect } from "next/navigation";
 
-export default function MyAttendancePage() {
-  return (
-    <PagePlaceholder
-      title="My Attendance"
-      purpose="Your own check-in history and calendar."
-      capabilities={[
-        "Personal check-in / check-out.",
-        "Attendance calendar view.",
-        "Request an attendance correction.",
-        "View your own status history.",
-      ]}
-    />
-  )
+import { getSessionUser } from "@/lib/auth";
+import { todayIso } from "@/lib/dates";
+import { MyAttendanceView } from "@/components/attendance/my-attendance-view";
+
+export default async function MyAttendancePage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
+  // HR and admins use the team board instead.
+  if (user.role !== "employee") redirect("/attendance");
+
+  return <MyAttendanceView today={todayIso()} />;
 }

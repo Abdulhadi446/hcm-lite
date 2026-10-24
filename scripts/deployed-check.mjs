@@ -31,8 +31,16 @@ page.on("pageerror", (e) => errors.push(`pageerror: ${e.message}`))
 page.on("response", (r) => { if (r.status() >= 500) failed.push(`${r.status()} ${r.url()}`) })
 
 try {
+  // 0. Ask the API whether this instance is still uninitialized (the landing
+  // page answers "/" with an HTML meta refresh, which races a URL check).
+  const status = await fetch(`${BASE}/api/setup/status`).then((r) => r.json()).catch(() => ({ initialized: null }))
+  const freshInstall = status.initialized === false
+
   // 1. Landing
-  const res = await page.goto(BASE, { waitUntil: "domcontentloaded", timeout: 45000 })
+  const res = await page.goto(freshInstall ? `${BASE}/setup` : BASE, {
+    waitUntil: "domcontentloaded",
+    timeout: 45000,
+  })
   ok(`landing ${res?.status()} -> ${page.url()}`)
   await page.waitForTimeout(1500)
 

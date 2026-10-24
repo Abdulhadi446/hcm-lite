@@ -7,13 +7,14 @@ import {
   KeyRoundIcon,
   MailIcon,
   PhoneIcon,
+  WalletIcon,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusBadge } from "./status-badge";
-import { formatDate, type Employee, type Role } from "./types";
+import { formatDate, formatMoney, type Employee, type Role } from "./types";
 
 export function BackLink({ role }: { role: Role }) {
   const isEmployee = role === "employee";
@@ -55,6 +56,11 @@ export function ProfileCard({ employee }: { employee: Employee }) {
           <InfoRow icon={<MailIcon />} label="Email" value={employee.email} />
           <InfoRow icon={<PhoneIcon />} label="Phone" value={employee.phone ?? "—"} />
           <InfoRow icon={<CalendarDaysIcon />} label="Joined" value={formatDate(employee.joinDate)} />
+          <InfoRow
+            icon={<WalletIcon />}
+            label="Gross salary"
+            value={formatMoney(employee.grossSalary)}
+          />
           {employee.status === "exited" && employee.exitDate ? (
             <InfoRow
               icon={<CalendarDaysIcon />}

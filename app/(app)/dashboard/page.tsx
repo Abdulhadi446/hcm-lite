@@ -109,7 +109,12 @@ export default async function DashboardPage({
         key={`${safeFrom}:${to}:${departmentId ?? "all"}`}
         fallback={<DashboardSkeleton />}
       >
-        <CompanyDashboard from={safeFrom} to={to} departmentId={departmentId} />
+        <CompanyDashboard
+          from={safeFrom}
+          to={to}
+          departmentId={departmentId}
+          canRegisterEmployees={user.role === "hr"}
+        />
       </Suspense>
     </div>
   );
@@ -121,10 +126,12 @@ async function CompanyDashboard({
   from,
   to,
   departmentId,
+  canRegisterEmployees,
 }: {
   from: string;
   to: string;
   departmentId: number | null;
+  canRegisterEmployees: boolean;
 }) {
   const summary = computeMetrics({ from, to, departmentId });
   const { kpis, today, trend, byDepartment, pending, recentHires } = summary;
@@ -143,10 +150,17 @@ async function CompanyDashboard({
           <CardContent className="p-4">
             <EmptyState
               title="No employees in this scope yet"
-              description="Add employees (or pick another department) and the KPIs, trend and department table fill in automatically."
+              description={
+                canRegisterEmployees
+                  ? "Add employees (or pick another department) and the KPIs, trend and department table fill in automatically."
+                  : "Ask HR to register employees — their records fill in the KPIs, trend and department table."
+              }
               action={
-                <Link href="/employees/new" className={buttonVariants({ size: "sm" })}>
-                  Add employee
+                <Link
+                  href={canRegisterEmployees ? "/employees/new" : "/employees"}
+                  className={buttonVariants({ size: "sm", variant: canRegisterEmployees ? "default" : "outline" })}
+                >
+                  {canRegisterEmployees ? "Add employee" : "View employees"}
                 </Link>
               }
             />

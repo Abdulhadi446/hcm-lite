@@ -1,7 +1,7 @@
 # TASK — HCM Lite (Saylani Hackathon, 24 Oct 2026)
 
 ## Problem summary
-Web HCM for a real HR team: three roles (Admin / HR / Employee), each with its own menu, data scope and dashboard, plus an AI assistant that answers **only from data in the DB** via tool calling. Nothing is pre-loaded — a fresh install starts empty. Admin sets up the company, HR registers employees (registration creates their login), employees check in and request leave, HR approves and runs payroll, Admin finalizes. Judges do a fresh install during judging and check that dashboards and AI answers match the records they just created.
+Web HCM for a real HR team: three roles (Admin / HR / Employee), each with its own menu, data scope and dashboard, plus an AI assistant that answers **only from data in the DB** via tool calling. Nothing is pre-loaded — a fresh install starts empty. Admin sets up the company, HR registers employees (registration creat2es their login), employees check in and request leave, HR approves and runs payroll, Admin finalizes. Judges do a fresh install during judging and check that dashboards and AI answers match the records they just created.
 
 9 modules, 25 functionalities: M1 Auth & Access · M2 Org Setup · M3 Employees · M4 Attendance · M5 Leave · M6 Payroll Lite · M7 Dashboards · M8 AI Assistant · M9 Comms & Audit.
 

@@ -1,17 +1,16 @@
-import { PagePlaceholder } from "@/components/page-placeholder"
+import { redirect } from "next/navigation";
 
-export default function EmployeesPage() {
-  return (
-    <PagePlaceholder
-      title="Employees"
-      purpose="Employee directory, job details, and records."
-      capabilities={[
-        "HR registers employees with job details and salary (creates login + temp password).",
-        "Search, filter, and paginate the employee directory.",
-        "Employee 360° profile view.",
-        "Own profile edit (phone, address).",
-        "CSV import / export dry-run.",
-      ]}
-    />
-  )
+import { getSessionUser } from "@/lib/auth";
+import { EmployeeDirectory } from "@/components/employees/employee-directory";
+
+export default async function EmployeesPage() {
+  const user = await getSessionUser();
+  if (!user) redirect("/login");
+
+  // Employees only ever see their own record — send them straight to it.
+  if (user.role === "employee") {
+    redirect(user.employeeId ? `/employees/${user.employeeId}` : "/dashboard");
+  }
+
+  return <EmployeeDirectory role={user.role} />;
 }

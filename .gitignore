@@ -61,3 +61,6 @@ next-env.d.ts
 
 # local scratch
 .tmp/
+
+# TestSprite MCP scratch
+testsprite_tests/

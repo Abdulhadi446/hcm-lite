@@ -8,16 +8,22 @@ import { ApiError } from "@/lib/guards";
 export class ApiFieldError extends ApiError {
   field?: string;
   fields?: Record<string, string>;
+  extra?: Record<string, unknown>;
 
   constructor(
     status: number,
     message: string,
-    opts: { field?: string; fields?: Record<string, string> } = {}
+    opts: {
+      field?: string;
+      fields?: Record<string, string>;
+      extra?: Record<string, unknown>;
+    } = {}
   ) {
     super(status, message);
     this.name = "ApiFieldError";
     this.field = opts.field;
     this.fields = opts.fields;
+    this.extra = opts.extra;
   }
 }
 
@@ -47,6 +53,7 @@ export function apiErrorJson(err: unknown): Response {
     if (err instanceof ApiFieldError) {
       if (err.fields) body.fields = err.fields;
       else if (err.field) body.field = err.field;
+      if (err.extra) Object.assign(body, err.extra);
     }
     return Response.json(body, { status: err.status });
   }

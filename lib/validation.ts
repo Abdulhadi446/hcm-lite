@@ -161,9 +161,72 @@ export const employeePatchSchema = z.object({
   password: z.string().min(8, "Password must be at least 8 characters").optional(),
 });
 
+// ------------------------------------------------------ M3 attendance
+
+const hhmmString = z
+  .string()
+  .trim()
+  .regex(/^([01]\d|2[0-3]):[0-5]\d$/, "Use a 24-hour time like 09:00");
+
+export const correctionCreateSchema = z.object({
+  date: isoDateString,
+  requestedCheckIn: hhmmString,
+  requestedCheckOut: hhmmString,
+  reason: requiredText("Reason", 500),
+});
+
+export const correctionReviewSchema = z.object({
+  action: z.enum(["approve", "reject"]),
+  comment: z.string().trim().max(500, "Comment is too long").optional(),
+});
+
+// ------------------------------------------------------------ M4 leave
+
+export const leaveRequestCreateSchema = z.object({
+  leaveTypeId: z.number().int("Choose a leave type").positive("Choose a leave type"),
+  startDate: isoDateString,
+  endDate: isoDateString,
+  reason: requiredText("Reason", 500),
+});
+
+export const leaveReviewSchema = z.object({
+  action: z.enum(["approve", "reject"]),
+  comment: z.string().trim().max(500, "Comment is too long").optional(),
+});
+
+// ---------------------------------------------------------- M5 payroll
+
+export const monthString = z
+  .string()
+  .trim()
+  .regex(/^\d{4}-(0[1-9]|1[0-2])$/, "Use a month like 2026-09");
+
+export const payrollRunCreateSchema = z.object({
+  month: monthString,
+});
+
+export const announcementCreateSchema = z.object({
+  title: requiredText("Title", 200),
+  body: requiredText("Message", 5000),
+  pinned: z.boolean().optional(),
+});
+
+export const announcementPatchSchema = z.object({
+  title: requiredText("Title", 200).optional(),
+  body: requiredText("Message", 5000).optional(),
+  pinned: z.boolean().optional(),
+});
+
 export type EmployeeCreateInput = z.output<typeof employeeCreateSchema>;
 export type EmployeePatchInput = z.output<typeof employeePatchSchema>;
 export type SettingsPatchInput = z.output<typeof settingsPatchSchema>;
+export type AnnouncementCreateInput = z.output<typeof announcementCreateSchema>;
+export type AnnouncementPatchInput = z.output<typeof announcementPatchSchema>;
+export type CorrectionCreateInput = z.output<typeof correctionCreateSchema>;
+export type CorrectionReviewInput = z.output<typeof correctionReviewSchema>;
+export type LeaveRequestCreateInput = z.output<typeof leaveRequestCreateSchema>;
+export type LeaveReviewInput = z.output<typeof leaveReviewSchema>;
+export type PayrollRunCreateInput = z.output<typeof payrollRunCreateSchema>;
 
 // -------------------------------------------------------------- parsing
 

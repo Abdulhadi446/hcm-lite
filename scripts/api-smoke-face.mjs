@@ -769,6 +769,59 @@ async function main() {
       verificationReasons.includes("0:outside_geofence"),
     `reasons=${[...new Set(verificationReasons)].join(",")}`);
 
+  // ------------------------------------------ delete template / office unset
+  const deleted = await request("/api/attendance/face/enroll", {
+    method: "DELETE",
+    cookie: state.emp1Cookie,
+  });
+  const statusAfterDelete = await request("/api/attendance/face/status", {
+    cookie: state.emp1Cookie,
+  });
+  const afterDeleteChallenge = await challengeId(state.emp1Cookie, "check-in");
+  const afterDeletePunch = await punch(
+    state.emp1Cookie,
+    "check-in",
+    afterDeleteChallenge,
+    same1,
+    officeLocation()
+  );
+  const templateRows = Number(
+    dbGet("SELECT COUNT(*) AS c FROM face_templates WHERE employee_id = ?", state.emp1EmployeeId).c
+  );
+  check("DELETE /enroll removes the template; next check-in -> 409 face_not_enrolled",
+    deleted.res.status === 200 &&
+      deleted.json?.ok === true &&
+      statusAfterDelete.json?.enrolled === false &&
+      statusAfterDelete.json?.version === 0 &&
+      afterDeletePunch.res.status === 409 &&
+      afterDeletePunch.json?.error === "face_not_enrolled" &&
+      templateRows === 0,
+    `delete=${deleted.res.status} enrolled=${statusAfterDelete.json?.enrolled} punch=${afterDeletePunch.res.status}/${afterDeletePunch.json?.error} templates=${templateRows}`);
+
+  const clearOffice = await request("/api/settings", {
+    method: "PATCH",
+    cookie: state.adminCookie,
+    body: { officeLat: null, officeLng: null },
+  });
+  const unsetChallenge = await challengeId(state.emp2Cookie, "check-in");
+  const unsetOffice = await punch(
+    state.emp2Cookie,
+    "check-in",
+    unsetChallenge,
+    base2,
+    officeLocation()
+  );
+  await request("/api/settings", {
+    method: "PATCH",
+    cookie: state.adminCookie,
+    body: { officeLat: OFFICE.latitude, officeLng: OFFICE.longitude },
+  });
+  check("office coordinates unset -> 409 office_location_not_set",
+    clearOffice.res.status === 200 &&
+      unsetOffice.res.status === 409 &&
+      unsetOffice.json?.error === "office_location_not_set",
+    `status=${unsetOffice.res.status} error=${unsetOffice.json?.error}`);
+
   // ------------------------------------------------------ embedding leakage
   const leaked = responseBodies.filter((entry) => containsEmbeddingPayload(entry.json));
   const textualLeak = responseBodies.filter(

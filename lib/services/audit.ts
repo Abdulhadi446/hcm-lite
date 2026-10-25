@@ -1,6 +1,7 @@
 import "server-only";
 import type { Role } from "@/lib/auth";
 import { nowIso, queryAll, queryOne, run } from "@/lib/db";
+import { normalizePage, normalizePageSize } from "./http";
 
 export type AuditAction =
   | "create"
@@ -8,6 +9,7 @@ export type AuditAction =
   | "delete"
   | "deactivate"
   | "reset_password"
+  | "login"
   | "import";
 
 export type AuditEntity =
@@ -125,7 +127,6 @@ type AuditDbRow = {
 };
 
 const DEFAULT_PAGE_SIZE = 20;
-const MAX_PAGE_SIZE = 100;
 
 /**
  * Filtered, paginated audit feed for the Admin viewer. `actor` is a
@@ -138,11 +139,8 @@ export function listAuditLogs(filters: AuditFilters = {}): {
   pageSize: number;
   entities: string[];
 } {
-  const page = Math.max(1, Math.trunc(filters.page ?? 1));
-  const pageSize = Math.min(
-    MAX_PAGE_SIZE,
-    Math.max(1, Math.trunc(filters.pageSize ?? DEFAULT_PAGE_SIZE))
-  );
+  const page = normalizePage(filters.page ?? 1);
+  const pageSize = normalizePageSize(filters.pageSize ?? DEFAULT_PAGE_SIZE);
 
   const where: string[] = [];
   const params: (string | number)[] = [];

@@ -8,6 +8,7 @@ import { buttonVariants } from "@/components/ui/button";
 import { EmptyState } from "@/components/page-header";
 import { DashboardHero } from "@/components/brand/dashboard-hero";
 import {
+  ArrowRightIcon,
   ArrowUpRightIcon,
   LineChartIcon,
   MegaphoneIcon,
@@ -20,9 +21,15 @@ import { isIsoDate, monthRange, todayIso } from "@/lib/dates";
 import { relativeTime } from "@/lib/relative-time";
 import { computeMetrics, employeeDashboard } from "@/lib/services/analytics";
 import { listAnnouncements } from "@/lib/services/comms";
+import { listAuditLogs } from "@/lib/services/audit";
 import { listDepartments } from "@/lib/services/org";
 import { AdminKpiGrid } from "@/components/dashboard/admin-kpi-grid";
+import { AuditFeedCard } from "@/components/dashboard/audit-feed-card";
 import { DashboardFilters } from "@/components/dashboard/dashboard-filters";
+import { DashboardSummary } from "@/components/ai/dashboard-summary";
+import { LateComersCard } from "@/components/dashboard/late-comers-card";
+import { LeaveByTypeCard } from "@/components/dashboard/leave-by-type-card";
+import { PayrollByDeptCard } from "@/components/dashboard/payroll-by-dept-card";
 import { DashboardSkeleton, EmployeeDashboardSkeleton } from "@/components/dashboard/dashboard-skeleton";
 import { DepartmentTable } from "@/components/dashboard/department-table";
 import { EmployeeKpiGrid } from "@/components/dashboard/employee-kpi-grid";
@@ -126,6 +133,7 @@ export default async function DashboardPage({
           to={to}
           departmentId={departmentId}
           canRegisterEmployees={user.role === "hr"}
+          isAdmin={user.role === "admin"}
         />
       </Suspense>
     </div>
@@ -139,14 +147,26 @@ async function CompanyDashboard({
   to,
   departmentId,
   canRegisterEmployees,
+  isAdmin,
 }: {
   from: string;
   to: string;
   departmentId: number | null;
   canRegisterEmployees: boolean;
+  isAdmin: boolean;
 }) {
   const summary = computeMetrics({ from, to, departmentId });
-  const { kpis, today, trend, byDepartment, pending, recentHires } = summary;
+  const { kpis, today, trend, byDepartment, pending, recentHires, insights } = summary;
+  const auditFeed = isAdmin
+    ? listAuditLogs({ pageSize: 8 }).items.map((row) => ({
+        id: row.id,
+        action: row.action,
+        entity: row.entity,
+        actorName: row.actorName,
+        summary: `${row.action} ${row.entity}${row.entityId ? ` #${row.entityId}` : ""}`,
+        createdAt: row.createdAt,
+      }))
+    : [];
   const departmentName =
     departmentId === null
       ? "Whole company"
@@ -208,7 +228,10 @@ async function CompanyDashboard({
 
         <div className="space-y-4 lg:col-span-4">
           <AnnouncementsCard />
-          <AiTeaserCard />
+          <DashboardSummary
+            rangeQuery={`from=${from}&to=${to}${departmentId ? `&departmentId=${departmentId}` : ""}`}
+          />
+          <AiAssistantCard />
         </div>
       </div>
 
@@ -221,6 +244,20 @@ async function CompanyDashboard({
           <RecentHires items={recentHires} />
         </div>
       </div>
+
+      <div className="grid gap-4 lg:grid-cols-12">
+        <div className="lg:col-span-4">
+          <LateComersCard items={insights.topLateComers} />
+        </div>
+        <div className="lg:col-span-4">
+          <LeaveByTypeCard items={insights.leaveByType} />
+        </div>
+        <div className="lg:col-span-4">
+          <PayrollByDeptCard items={insights.payrollByDepartment} />
+        </div>
+      </div>
+
+      {isAdmin ? <AuditFeedCard items={auditFeed} canViewAll /> : null}
     </div>
   );
 }
@@ -352,47 +389,60 @@ function AnnouncementsCard() {
   );
 }
 
-function AiTeaserCard() {
+function AiAssistantCard() {
   return (
     <Card className="border-border">
-      <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
-        <div className="min-w-0">
-          <CardTitle className="flex items-center gap-2 text-sm">
-            <span className="flex size-5 items-center justify-center rounded-md bg-primary/10 text-[11px] leading-none text-primary">
-              ✦
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <span
+            aria-hidden="true"
+            className="flex size-5 items-center justify-center rounded-md bg-primary/10 text-[11px] leading-none text-primary"
+          >
+            ✦
+          </span>
+          AI assistant
+        </CardTitle>
+        <CardDescription className="mt-1 text-xs">
+          Ask in plain language — answers are built live from your HR, attendance, leave
+          and payroll records.
+        </CardDescription>
+      </CardHeader>
+
+      <CardContent className="space-y-3 pt-0">
+        <ul className="space-y-2 text-sm text-muted-foreground">
+          <li className="flex items-start gap-2">
+            <span aria-hidden="true" className="mt-1 text-xs text-primary">
+              •
             </span>
-            AI assistant
-          </CardTitle>
-          <CardDescription className="mt-1 text-xs">
-            Ask in plain language — answers come from your own records.
-          </CardDescription>
-        </div>
+            <span>Headcount, late arrivals, leave balances and payroll totals</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span aria-hidden="true" className="mt-1 text-xs text-primary">
+              •
+            </span>
+            <span>A sentence becomes a pre-filled leave request</span>
+          </li>
+          <li className="flex items-start gap-2">
+            <span aria-hidden="true" className="mt-1 text-xs text-primary">
+              •
+            </span>
+            <span>Role-scoped — employees only see their own records</span>
+          </li>
+        </ul>
+
         <Link
           href="/ai"
-          className="group inline-flex shrink-0 items-center gap-1 rounded-full border border-border px-2 py-0.5 text-[11px] font-medium text-muted-foreground transition-colors hover:border-primary/40 hover:text-foreground"
+          className={cn(buttonVariants({ size: "sm" }), "w-full gap-1.5")}
         >
-          Open
-          <ArrowUpRightIcon className="size-3 transition-transform group-hover:-translate-y-0.5 group-hover:translate-x-0.5" />
+          Ask the assistant
+          <ArrowRightIcon className="size-3.5" />
         </Link>
-      </CardHeader>
-      <CardContent className="pt-0">
-        <div className="flex flex-col gap-2 text-sm text-muted-foreground">
-          <div className="flex items-start gap-2">
-            <span className="mt-1 text-xs text-primary">•</span>
-            <span>Dashboard summaries from live data</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="mt-1 text-xs text-primary">•</span>
-            <span>Smart leave: sentence → pre-filled form</span>
-          </div>
-          <div className="flex items-start gap-2">
-            <span className="mt-1 text-xs text-primary">•</span>
-            <span>Policy Q&amp;A from your records</span>
-          </div>
-        </div>
       </CardContent>
-      <CardFooter className="flex-col items-start gap-1">
-        <span className="text-[10px] tracking-wider text-muted-foreground uppercase">AI-generated answers are labelled</span>
+
+      <CardFooter>
+        <span className="text-[10px] tracking-wider text-muted-foreground uppercase">
+          AI-generated answers are labelled
+        </span>
       </CardFooter>
     </Card>
   );

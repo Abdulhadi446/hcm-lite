@@ -32,7 +32,10 @@ let enginePromise: Promise<Human> | null = null;
 async function loadEngine(): Promise<Human> {
   if (!enginePromise) {
     enginePromise = (async () => {
-      const { default: HumanCtor } = await import("@vladmandic/human");
+      const humanModule = await import(
+        "../../node_modules/@vladmandic/human/dist/human.esm.js"
+      );
+      const HumanCtor = humanModule.default as unknown as typeof import("@vladmandic/human").default;
       const human = new HumanCtor(FACE_CONFIG);
       await human.load();
       // Warmup is an optimisation; a backend that refuses it shouldn't block use.
@@ -90,7 +93,7 @@ function mapCameraError(err: unknown): EngineError {
 }
 
 export type FaceEngine = {
-  setVideoRef: (node: HTMLVideoElement | null) => void;
+  attachVideo: (node: HTMLVideoElement | null) => void;
   phase: EnginePhase;
   error: EngineError | null;
   gate: FaceGate;
@@ -142,7 +145,7 @@ export function useFaceEngine(active: boolean): FaceEngine {
     }
   }, []);
 
-  const setVideoRef = useCallback((node: HTMLVideoElement | null) => {
+  const attachVideo = useCallback((node: HTMLVideoElement | null) => {
     videoRef.current = node;
     if (!node) return;
     node.muted = true;
@@ -307,7 +310,7 @@ export function useFaceEngine(active: boolean): FaceEngine {
           try {
             await video.play();
           } catch {
-            /* setVideoRef / the loop will retry */
+            /* attachVideo / the loop will retry */
           }
         }
         return true;
@@ -320,12 +323,23 @@ export function useFaceEngine(active: boolean): FaceEngine {
       }
     };
 
+    // Ask for the camera immediately so a denial is reported without waiting
+    // for the ~9 MB of models to download.
+    let cameraSettled = false;
+    let cameraOk = false;
+    const cameraPromise = openCamera().then((ok) => {
+      cameraSettled = true;
+      cameraOk = ok;
+      return ok;
+    });
+
     void (async () => {
       let human: Human;
       try {
         human = await loadEngine();
       } catch {
         if (!isCurrent()) return;
+        stopStream();
         setError({
           code: "model-load-failed",
           title: "Camera models couldn't load",
@@ -337,8 +351,9 @@ export function useFaceEngine(active: boolean): FaceEngine {
       }
       if (!isCurrent()) return;
       humanRef.current = human;
-      setPhase("requesting-camera");
-      const opened = await openCamera();
+      if (cameraSettled && !cameraOk) return;
+      if (!cameraSettled) setPhase("requesting-camera");
+      const opened = await cameraPromise;
       if (!isCurrent() || !opened) return;
       setPhase("ready");
       loop();
@@ -378,5 +393,5 @@ export function useFaceEngine(active: boolean): FaceEngine {
     setRetryNonce((value) => value + 1);
   }, []);
 
-  return { setVideoRef, phase, error, gate, captureEmbedding, retry };
+  return { attachVideo, phase, error, gate, captureEmbedding, retry };
 }

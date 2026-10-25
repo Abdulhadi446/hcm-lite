@@ -47,7 +47,7 @@ export function CameraPreview({
   className?: string;
   showHint?: boolean;
 }) {
-  const { phase, error, gate } = engine;
+  const { attachVideo, phase, error, gate, retry } = engine;
   const copy = frameCopy(gate.reason);
   const ready = phase === "ready" && gate.ready;
   const busy = phase === "loading-models" || phase === "requesting-camera";
@@ -63,7 +63,9 @@ export function CameraPreview({
             ? { label: "Camera unavailable", tone: "bad" as StatusTone }
             : phase === "idle"
               ? { label: "Camera off", tone: "neutral" as StatusTone }
-              : { label: copy.label, tone: copy.tone };
+              : phase === "ready" && gate.luminance == null
+                ? { label: "Camera ready", tone: "neutral" as StatusTone }
+                : { label: copy.label, tone: copy.tone };
 
   return (
     <div className={cn("overflow-hidden rounded-xl bg-neutral-950", className)}>
@@ -76,7 +78,7 @@ export function CameraPreview({
         )}
       >
         <video
-          ref={engine.setVideoRef}
+          ref={attachVideo}
           className="h-full w-full -scale-x-100 object-cover"
           playsInline
           muted
@@ -148,7 +150,7 @@ export function CameraPreview({
               size="sm"
               variant="secondary"
               className="mt-1"
-              onClick={engine.retry}
+              onClick={() => retry()}
             >
               Retry
             </Button>
@@ -160,8 +162,8 @@ export function CameraPreview({
             <CameraOffIcon className="size-6 text-white/70" aria-hidden />
             <p className="text-sm font-medium text-white">Camera paused</p>
             <p className="text-[11px] text-white/60">
-              The camera stops when this tab is hidden. Switch back to resume.
-            </p>
+            Switch back to this tab to resume.
+          </p>
           </div>
         ) : null}
       </div>

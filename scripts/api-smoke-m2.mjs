@@ -451,6 +451,8 @@ steps.push(async () => {
 });
 
 steps.push(async () => {
+  // While a temporary password is pending, every non-auth API is blocked with
+  // 403 password_change_required (forced change per the brief).
   const me = await request(`/api/employees/${state.employeeId}`, {
     cookie: state.employeeCookie,
   });
@@ -459,12 +461,14 @@ steps.push(async () => {
   });
   const list = await request("/api/employees", { cookie: state.employeeCookie });
   check(
-    "employee sees own row only (own=200, other=403, list total=1)",
-    me.res.status === 200 &&
+    "employee endpoints blocked until password change (own/other/list -> 403)",
+    me.res.status === 403 &&
+      me.json?.error === "password_change_required" &&
       other.res.status === 403 &&
-      list.json?.total === 1 &&
-      list.json?.items?.[0]?.id === state.employeeId,
-    `own=${me.res.status} other=${other.res.status} total=${list.json?.total}`
+      other.json?.error === "password_change_required" &&
+      list.res.status === 403 &&
+      list.json?.error === "password_change_required",
+    `own=${me.res.status}/${me.json?.error} other=${other.res.status} list=${list.res.status}`
   );
 });
 
@@ -487,6 +491,24 @@ steps.push(async () => {
       me.json?.user?.mustChangePassword === false &&
       relogin.res.status === 200,
     `change=${change.res.status} me=${JSON.stringify(me.json?.user?.mustChangePassword)} relogin=${relogin.res.status}`
+  );
+});
+
+steps.push(async () => {
+  const me = await request(`/api/employees/${state.employeeId}`, {
+    cookie: state.employeeCookie,
+  });
+  const other = await request(`/api/employees/${state.secondEmployeeId}`, {
+    cookie: state.employeeCookie,
+  });
+  const list = await request("/api/employees", { cookie: state.employeeCookie });
+  check(
+    "employee sees own row only (own=200, other=403, list total=1)",
+    me.res.status === 200 &&
+      other.res.status === 403 &&
+      list.json?.total === 1 &&
+      list.json?.items?.[0]?.id === state.employeeId,
+    `own=${me.res.status} other=${other.res.status} total=${list.json?.total}`
   );
 });
 

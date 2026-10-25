@@ -35,6 +35,80 @@ export function duplicateError(field: string): ApiFieldError {
   return new ApiFieldError(409, "duplicate", { field });
 }
 
+// --------------------------------------------------------------- pagination
+
+export const MIN_PAGE = 1;
+export const MAX_PAGE = 10_000;
+export const MIN_PAGE_SIZE = 1;
+export const MAX_PAGE_SIZE = 100;
+export const DEFAULT_PAGE_SIZE = 20;
+
+/**
+ * Defensive, non-throwing clamp for service-level callers. Keeps
+ * `(page - 1) * pageSize` far away from SQLite's REAL/INTEGER mismatch.
+ */
+export function normalizePage(value: unknown, fallback = MIN_PAGE): number {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  const page = Math.trunc(number);
+  if (page < MIN_PAGE) return fallback;
+  return Math.min(page, MAX_PAGE);
+}
+
+export function normalizePageSize(value: unknown, fallback = DEFAULT_PAGE_SIZE): number {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return fallback;
+  const pageSize = Math.trunc(number);
+  if (pageSize < MIN_PAGE_SIZE) return fallback;
+  return Math.min(pageSize, MAX_PAGE_SIZE);
+}
+
+function paginationParam(
+  raw: string | null,
+  name: "page" | "pageSize",
+  min: number,
+  max: number,
+  fallback: number
+): number {
+  if (raw === null || raw.trim() === "") return fallback;
+
+  const value = Number(raw);
+  const message = `${name} must be an integer between ${min} and ${max}`;
+  if (!Number.isFinite(value) || !Number.isInteger(value) || value < min) {
+    throw new ApiFieldError(400, "validation_error", {
+      field: name,
+      fields: { [name]: message },
+    });
+  }
+  // Absurdly large values cannot be represented safely as SQLite integers.
+  // Reject them instead of letting the offset overflow; merely large values
+  // below MAX_SAFE_INTEGER are clamped to the documented bound.
+  if (value > Number.MAX_SAFE_INTEGER) {
+    throw new ApiFieldError(400, "validation_error", {
+      field: name,
+      fields: { [name]: message },
+    });
+  }
+  return Math.min(value, max);
+}
+
+/** Parse `page` / `pageSize` query params for route handlers. */
+export function parsePagination(
+  params: URLSearchParams,
+  defaultPageSize = DEFAULT_PAGE_SIZE
+): { page: number; pageSize: number } {
+  return {
+    page: paginationParam(params.get("page"), "page", MIN_PAGE, MAX_PAGE, MIN_PAGE),
+    pageSize: paginationParam(
+      params.get("pageSize"),
+      "pageSize",
+      MIN_PAGE_SIZE,
+      MAX_PAGE_SIZE,
+      defaultPageSize
+    ),
+  };
+}
+
 export function notFound(): ApiError {
   return new ApiError(404, "not_found");
 }

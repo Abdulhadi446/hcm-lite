@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { CalendarDaysIcon, ReceiptTextIcon, TimerIcon } from "lucide-react";
+import { CalendarDaysIcon, LogInIcon, ReceiptTextIcon, SparklesIcon, TimerIcon } from "lucide-react";
 
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -80,8 +80,27 @@ export function LeaveBalanceBars({ items }: { items: EmployeeDashboard["leaveBal
 export function EmployeeQuickCards({ data }: { data: EmployeeDashboard }) {
   const nextHoliday = data.upcomingHolidays[0] ?? null;
 
+  const hours = data.me.hoursThisWeek;
+
   return (
     <div className="space-y-3">
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <LogInIcon className="size-4" />
+            Check in
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Link
+            href="/attendance"
+            className={buttonVariants({ size: "sm", variant: "outline", className: "mt-0" })}
+          >
+            Open attendance to check in or check out.
+          </Link>
+        </CardContent>
+      </Card>
+
       <Card size="sm">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-sm">
@@ -90,10 +109,41 @@ export function EmployeeQuickCards({ data }: { data: EmployeeDashboard }) {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-2xl font-semibold tabular-nums">{data.me.hoursThisWeek}h</p>
+          <p className="text-2xl font-semibold tabular-nums">{hours}h / 40h</p>
+          <div
+            className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-muted"
+            role="progressbar"
+            aria-label="Hours this week"
+            aria-valuemin={0}
+            aria-valuemax={40}
+            aria-valuenow={hours}
+          >
+            <div
+              className="h-full rounded-full bg-primary"
+              style={{ width: `${Math.min(100, (hours / 40) * 100)}%` }}
+            />
+          </div>
           <p className="mt-0.5 text-[11px] text-muted-foreground">
             From your check-in / check-out records since Monday.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card size="sm">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <SparklesIcon className="size-4" />
+            Ask the assistant
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-[11px] text-muted-foreground">Ask questions about your records.</p>
+          <Link
+            href="/ai"
+            className={buttonVariants({ size: "sm", variant: "outline", className: "mt-3" })}
+          >
+            Ask the assistant
+          </Link>
         </CardContent>
       </Card>
 

@@ -1,15 +1,12 @@
 import { headers } from "next/headers";
-import { getSessionUser } from "@/lib/auth";
-import { apiError } from "@/lib/guards";
+import { apiError, requireUser } from "@/lib/guards";
 
 export async function GET() {
   // Request-time only; never prerendered (cookie-dependent).
   await headers();
   try {
-    const user = await getSessionUser();
-    if (!user) {
-      return Response.json({ error: "Unauthorized" }, { status: 401 });
-    }
+    // Must remain readable while a forced password change is pending.
+    const user = await requireUser({ allowPasswordChangePending: true });
     return Response.json({ user });
   } catch (err) {
     return apiError(err);

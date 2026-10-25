@@ -10,10 +10,22 @@ export class ApiError extends Error {
   }
 }
 
-/** Throws ApiError(401) when there is no valid, active session. */
-export async function requireUser(): Promise<SessionUser> {
+export type RequireUserOptions = {
+  /**
+   * Auth endpoints that must stay usable while a temporary password is still
+   * pending (me / change-password / logout) opt out of the forced change.
+   */
+  allowPasswordChangePending?: boolean;
+};
+
+/**
+ * Throws ApiError(401) when there is no valid, active session, and
+ * ApiError(403 password_change_required) while a password change is pending.
+ */
+export async function requireUser(options: RequireUserOptions = {}): Promise<SessionUser> {
   const user = await getSessionUser();
   if (!user) throw new ApiError(401, "Unauthorized");
+  if (!options.allowPasswordChangePending) mustChangePassword(user);
   return user;
 }
 
@@ -35,9 +47,9 @@ export function scopeEmployeeId(user: SessionUser): number | null {
 }
 
 /**
- * Guard for future routes: when must_change_password is set, block access with
- * 403 password_change_required. Do NOT apply this to /api/auth/me, /logout or
- * /change-password themselves.
+ * When must_change_password is set, block access with 403
+ * password_change_required. Enforced by `requireUser`; the auth endpoints can
+ * opt out via `requireUser({ allowPasswordChangePending: true })`.
  */
 export function mustChangePassword(user: SessionUser): void {
   if (user.mustChangePassword) {

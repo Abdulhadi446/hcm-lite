@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { requireRole, requireUser } from "@/lib/guards";
-import { apiErrorJson } from "@/lib/services/http";
+import { apiErrorJson, parsePagination } from "@/lib/services/http";
 import { createEmployee, listEmployees, toScope } from "@/lib/services/employees";
 import { employeeCreateSchema, parseBody } from "@/lib/validation";
 
@@ -13,8 +13,7 @@ export async function GET(request: Request) {
     const departmentRaw = params.get("departmentId");
     const departmentId =
       departmentRaw && /^\d+$/.test(departmentRaw) ? Number(departmentRaw) : undefined;
-    const pageRaw = Number(params.get("page") ?? "1");
-    const pageSizeRaw = Number(params.get("pageSize") ?? "20");
+    const { page, pageSize } = parsePagination(params);
 
     return Response.json(
       listEmployees(
@@ -22,8 +21,8 @@ export async function GET(request: Request) {
           q: params.get("q") ?? undefined,
           departmentId,
           status: params.get("status"),
-          page: Number.isFinite(pageRaw) ? pageRaw : 1,
-          pageSize: Number.isFinite(pageSizeRaw) ? pageSizeRaw : 20,
+          page,
+          pageSize,
           sort: params.get("sort"),
         },
         toScope(user)

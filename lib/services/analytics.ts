@@ -65,6 +65,10 @@ export type DashboardKpis = {
   avgTenureMonths: number;
   openCorrections: number;
   pendingLeaves: number;
+  /** Mean monthly gross (1.5 x basic) over the in-scope roster with basic > 0. */
+  avgSalary: number;
+  /** Exits in the current calendar year / average headcount, as a percentage. */
+  attritionYtd: number;
 };
 
 export type TrendPoint = { date: string; present: number; late: number; absent: number };
@@ -74,7 +78,38 @@ export type DepartmentBreakdown = {
   departmentName: string;
   headcount: number;
   attendanceRate: number;
+  absenteeismRate: number;
   latePct: number;
+};
+
+export type LateComerRow = {
+  employeeId: number;
+  name: string;
+  code: string;
+  departmentName: string | null;
+  lateDays: number;
+};
+
+export type LeaveTypeRow = {
+  leaveTypeId: number;
+  typeName: string;
+  approvedDays: number;
+  entitlementDays: number;
+  utilization: number;
+};
+
+export type PayrollDeptRow = {
+  departmentId: number | null;
+  departmentName: string;
+  headcount: number;
+  payrollCost: number;
+  avgSalary: number;
+};
+
+export type InsightLists = {
+  topLateComers: LateComerRow[];
+  leaveByType: LeaveTypeRow[];
+  payrollByDepartment: PayrollDeptRow[];
 };
 
 export type RecentHire = {
@@ -109,6 +144,7 @@ export type MetricsResult = {
   today: TodaySnapshot;
   trend: TrendPoint[];
   byDepartment: DepartmentBreakdown[];
+  insights: InsightLists;
   pending: { leaves: number; corrections: number };
   recentHires: RecentHire[];
   upcomingHolidays: HolidayItem[];
@@ -120,6 +156,7 @@ type RosterRow = {
   exit_date: string | null;
   department_id: number | null;
   department_name: string | null;
+  basic_salary: number;
 };
 
 type AttendanceRow = {
@@ -130,18 +167,31 @@ type AttendanceRow = {
   check_out_at: string | null;
 };
 
-type DayCounts = { present: number; late: number; half: number };
+type DayCounts = { present: number; late: number; half: number; missing: number };
 
 function emptyDay(): DayCounts {
-  return { present: 0, late: 0, half: 0 };
+  return { present: 0, late: 0, half: 0, missing: 0 };
 }
 
 // ------------------------------------------------------------- helpers
 
-/** Employee status used by the attendance board: NULL + checkout means present. */
-function normalizedStatus(row: AttendanceRow): "present" | "late" | "half_day" | null {
+/**
+ * Attendance status used by the board. Missing-checkout days come from the
+ * stored `attendance.status` (never inferred from timestamps); a NULL status
+ * with both timestamps is still treated as present, as before.
+ */
+function normalizedStatus(
+  row: AttendanceRow
+): "present" | "late" | "half_day" | "missing_checkout" | null {
   const status = row.status ?? (row.check_out_at && row.check_in_at ? "present" : null);
-  if (status === "present" || status === "late" || status === "half_day") return status;
+  if (
+    status === "present" ||
+    status === "late" ||
+    status === "half_day" ||
+    status === "missing_checkout"
+  ) {
+    return status;
+  }
   return null;
 }
 
@@ -175,7 +225,8 @@ function activeRoster(
 ): RosterRow[] {
   const filter = scopeFilter(departmentId, employeeId);
   return queryAll<RosterRow>(
-    `SELECT e.id, e.join_date, e.exit_date, e.department_id, d.name AS department_name
+    `SELECT e.id, e.join_date, e.exit_date, e.department_id, d.name AS department_name,
+            e.basic_salary
        FROM employees e
        LEFT JOIN departments d ON d.id = e.department_id
       WHERE e.status IN ('active', 'probation')
@@ -310,6 +361,25 @@ function headcountOn(
   return Number(row?.c ?? 0);
 }
 
+/** Employees whose exit_date falls in the given calendar year (YTD attrition). */
+function exitsInYear(
+  year: string,
+  departmentId?: number | null,
+  employeeId?: number | null
+): number {
+  const filter = scopeFilter(departmentId, employeeId);
+  const row = queryOne<{ c: number }>(
+    `SELECT COUNT(*) AS c
+       FROM employees e
+      WHERE e.exit_date IS NOT NULL
+        AND e.exit_date >= ? AND e.exit_date <= ?${filter.sql}`,
+    `${year}-01-01`,
+    `${year}-12-31`,
+    ...filter.args
+  );
+  return Number(row?.c ?? 0);
+}
+
 /**
  * Leave utilization = approved leave days this year ÷ total entitlement.
  * Entitlement is the quota sum of every capped (quota_days > 0) leave type
@@ -400,6 +470,168 @@ function payrollTotal(
   };
 }
 
+// ------------------------------------------------------------ insights
+
+/** Most late days in the window, capped at five (lateDays desc, then name asc). */
+function topLateComersIn(
+  from: string,
+  to: string,
+  departmentId?: number | null,
+  employeeId?: number | null
+): LateComerRow[] {
+  const filter = scopeFilter(departmentId, employeeId);
+  return queryAll<{
+    employee_id: number;
+    name: string;
+    code: string;
+    department_name: string | null;
+    late_days: number;
+  }>(
+    `SELECT e.id AS employee_id, e.full_name AS name, e.code AS code,
+            d.name AS department_name, COUNT(*) AS late_days
+       FROM attendance a
+       JOIN employees e ON e.id = a.employee_id
+       LEFT JOIN departments d ON d.id = e.department_id
+      WHERE a.status = 'late'
+        AND a.date >= ? AND a.date <= ?${filter.sql}
+      GROUP BY e.id
+      ORDER BY late_days DESC, e.full_name COLLATE NOCASE ASC
+      LIMIT 5`,
+    from,
+    to,
+    ...filter.args
+  ).map((row) => ({
+    employeeId: Number(row.employee_id),
+    name: row.name,
+    code: row.code,
+    departmentName: row.department_name ?? null,
+    lateDays: Number(row.late_days),
+  }));
+}
+
+/**
+ * Approved leave days overlapping the window grouped by leave type. Overlap is
+ * counted in working days only (weekends/holidays skipped), matching
+ * `onLeaveDays`; one calendar day per employee/type is counted once.
+ */
+function leaveByTypeIn(
+  from: string,
+  to: string,
+  rosterIds: Set<number>,
+  headcount: number,
+  weekendDays: string,
+  holidays: Set<string>,
+  departmentId?: number | null,
+  employeeId?: number | null
+): LeaveTypeRow[] {
+  const filter = scopeFilter(departmentId, employeeId);
+  const requests = queryAll<{
+    employee_id: number;
+    leave_type_id: number;
+    start_date: string;
+    end_date: string;
+  }>(
+    `SELECT lr.employee_id, lr.leave_type_id, lr.start_date, lr.end_date
+       FROM leave_requests lr
+       JOIN employees e ON e.id = lr.employee_id
+      WHERE lr.status = 'approved'
+        AND lr.start_date <= ? AND lr.end_date >= ?${filter.sql}`,
+    to,
+    from,
+    ...filter.args
+  );
+
+  const used = new Map<number, number>();
+  const seen = new Set<string>();
+  for (const request of requests) {
+    const id = Number(request.employee_id);
+    if (!rosterIds.has(id)) continue;
+    const typeId = Number(request.leave_type_id);
+    const start = request.start_date < from ? from : request.start_date;
+    const end = request.end_date > to ? to : request.end_date;
+    for (const day of dateRange(start, end)) {
+      if (isWeekendDate(day, weekendDays) || holidays.has(day)) continue;
+      const key = `${typeId}:${id}:${day}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      used.set(typeId, (used.get(typeId) ?? 0) + 1);
+    }
+  }
+
+  const types = queryAll<{ id: number; name: string; quota_days: number }>(
+    "SELECT id, name, COALESCE(quota_days, 0) AS quota_days FROM leave_types ORDER BY id"
+  );
+
+  return types
+    .map((type) => {
+      const leaveTypeId = Number(type.id);
+      const quota = Number(type.quota_days ?? 0);
+      const approvedDays = used.get(leaveTypeId) ?? 0;
+      const entitlementDays = quota > 0 ? round2(quota * headcount) : 0;
+      return {
+        leaveTypeId,
+        typeName: type.name,
+        approvedDays,
+        entitlementDays,
+        utilization: entitlementDays > 0 ? pct(approvedDays, entitlementDays) : 0,
+      };
+    })
+    .sort((a, b) => b.approvedDays - a.approvedDays || a.typeName.localeCompare(b.typeName));
+}
+
+/**
+ * Latest finalized payroll run inside the range, else the latest draft (the
+ * same precedence `payrollCost` uses). Payslip gross is grouped by the
+ * employee's current department.
+ */
+function payrollByDepartmentIn(
+  from: string,
+  to: string,
+  departmentId?: number | null,
+  employeeId?: number | null
+): PayrollDeptRow[] {
+  const fromMonth = from.slice(0, 7);
+  const toMonth = to.slice(0, 7);
+  const run = queryOne<{ id: number }>(
+    `SELECT id
+       FROM payroll_runs
+      WHERE month >= ? AND month <= ?
+      ORDER BY CASE status WHEN 'finalized' THEN 0 ELSE 1 END ASC, month DESC, id DESC
+      LIMIT 1`,
+    fromMonth,
+    toMonth
+  );
+  if (!run) return [];
+
+  const filter = scopeFilter(departmentId, employeeId);
+  return queryAll<{
+    department_id: number | null;
+    department_name: string | null;
+    headcount: number;
+    payroll_cost: number;
+    avg_salary: number;
+  }>(
+    `SELECT e.department_id AS department_id, d.name AS department_name,
+            COUNT(DISTINCT p.employee_id) AS headcount,
+            COALESCE(SUM(p.gross), 0) AS payroll_cost,
+            COALESCE(AVG(p.gross), 0) AS avg_salary
+       FROM payslips p
+       JOIN employees e ON e.id = p.employee_id
+       LEFT JOIN departments d ON d.id = e.department_id
+      WHERE p.run_id = ?${filter.sql}
+      GROUP BY e.department_id
+      ORDER BY payroll_cost DESC`,
+    Number(run.id),
+    ...filter.args
+  ).map((row) => ({
+    departmentId: row.department_id === null ? null : Number(row.department_id),
+    departmentName: row.department_name ?? "Unassigned",
+    headcount: Number(row.headcount),
+    payrollCost: round2(Number(row.payroll_cost ?? 0)),
+    avgSalary: round2(Number(row.avg_salary ?? 0)),
+  }));
+}
+
 // ------------------------------------------------------------- metrics
 
 export function computeMetrics(input: MetricsInput = {}): MetricsResult {
@@ -437,6 +669,9 @@ export function computeMetrics(input: MetricsInput = {}): MetricsResult {
     } else if (status === "late") {
       employeeCounts.late += 1;
       dateCounts.late += 1;
+    } else if (status === "missing_checkout") {
+      employeeCounts.missing += 1;
+      dateCounts.missing += 1;
     } else {
       employeeCounts.half += 1;
       dateCounts.half += 1;
@@ -458,34 +693,62 @@ export function computeMetrics(input: MetricsInput = {}): MetricsResult {
   let presentDays = 0;
   let lateDays = 0;
   let halfDays = 0;
+  let missingCheckoutDays = 0;
   for (const counts of byEmployee.values()) {
     presentDays += counts.present;
     lateDays += counts.late;
     halfDays += counts.half;
+    missingCheckoutDays += counts.missing;
   }
 
   let onLeaveDays = 0;
   for (const days of leave.byEmployee.values()) onLeaveDays += days.size;
 
   let absentDays = 0;
+  const absentByEmployee = new Map<number, number>();
   for (const id of rosterIds) {
     const counts = byEmployee.get(id) ?? emptyDay();
     const attended =
-      counts.present + counts.late + counts.half + (leave.byEmployee.get(id)?.size ?? 0);
-    absentDays += Math.max(0, workingDays - attended);
+      counts.present +
+      counts.late +
+      counts.half +
+      counts.missing +
+      (leave.byEmployee.get(id)?.size ?? 0);
+    const absent = Math.max(0, workingDays - attended);
+    absentByEmployee.set(id, absent);
+    absentDays += absent;
   }
 
   const expectedDays = headcount * workingDays;
-  const attendedDays = presentDays + lateDays + halfDays + onLeaveDays;
-  const attendanceRate = pct(attendedDays, expectedDays);
-  const latePct = pct(lateDays, presentDays + lateDays + halfDays);
-  const absenteeismRate = pct(absentDays, expectedDays);
+  // Approved leave is removed from the denominator instead of being added to
+  // the numerator; a missing checkout counts as present, a half day as 0.5.
+  const rateDenominator = Math.max(0, expectedDays - onLeaveDays);
+  const rateNumerator = presentDays + lateDays + missingCheckoutDays + 0.5 * halfDays;
+  const attendedDays = presentDays + lateDays + halfDays + missingCheckoutDays + onLeaveDays;
+  const attendanceRate = pct(rateNumerator, rateDenominator);
+  const latePct = pct(lateDays, presentDays + lateDays);
+  const absenteeismRate = pct(absentDays, rateDenominator);
 
   const exits = exitsInRange(from, to, departmentId, employeeId);
   const headcountAtFrom = headcountOn(from, departmentId, employeeId);
   const headcountAtTo = headcountOn(to, departmentId, employeeId);
   const averageHeadcount = (headcountAtFrom + headcountAtTo) / 2;
   const attritionRate = pct(exits, averageHeadcount);
+
+  const year = today.slice(0, 4);
+  const exitsYtd = exitsInYear(year, departmentId, employeeId);
+  const headcountYearStart = headcountOn(`${year}-01-01`, departmentId, employeeId);
+  const headcountNow = headcountOn(today, departmentId, employeeId);
+  const attritionYtd = pct(exitsYtd, (headcountYearStart + headcountNow) / 2);
+
+  const salaried = roster.filter((row) => Number(row.basic_salary ?? 0) > 0);
+  const avgSalary =
+    salaried.length > 0
+      ? round2(
+          salaried.reduce((total, row) => total + 1.5 * Number(row.basic_salary), 0) /
+            salaried.length
+        )
+      : 0;
 
   const tenures = roster.filter((row) => row.join_date);
   const avgTenureMonths =
@@ -529,6 +792,8 @@ export function computeMetrics(input: MetricsInput = {}): MetricsResult {
     avgTenureMonths,
     openCorrections,
     pendingLeaves,
+    avgSalary,
+    attritionYtd,
   };
 
   // Trend stops at today so future days never read as absences, and empty
@@ -545,7 +810,7 @@ export function computeMetrics(input: MetricsInput = {}): MetricsResult {
     if (dayHeadcount === 0) continue;
     const counts = byDate.get(day) ?? emptyDay();
     const onLeave = leave.byDate.get(day) ?? 0;
-    const attended = counts.present + counts.late + counts.half + onLeave;
+    const attended = counts.present + counts.late + counts.half + counts.missing + onLeave;
     trend.push({
       date: day,
       present: counts.present,
@@ -571,26 +836,31 @@ export function computeMetrics(input: MetricsInput = {}): MetricsResult {
 
   const byDepartment: DepartmentBreakdown[] = [...departments.entries()]
     .map(([key, entry]) => {
-      let attended = 0;
       let deptPresent = 0;
       let deptLate = 0;
       let deptHalf = 0;
+      let deptMissing = 0;
       let deptLeave = 0;
+      let deptAbsent = 0;
       for (const id of entry.ids) {
         const counts = byEmployee.get(id) ?? emptyDay();
-        attended += counts.present + counts.late + counts.half;
         deptPresent += counts.present;
         deptLate += counts.late;
         deptHalf += counts.half;
+        deptMissing += counts.missing;
         deptLeave += leave.byEmployee.get(id)?.size ?? 0;
+        deptAbsent += absentByEmployee.get(id) ?? 0;
       }
       const deptHeadcount = entry.ids.size;
+      const deptDenominator = Math.max(0, deptHeadcount * workingDays - deptLeave);
+      const deptNumerator = deptPresent + deptLate + deptMissing + 0.5 * deptHalf;
       return {
         departmentId: key,
         departmentName: entry.name,
         headcount: deptHeadcount,
-        attendanceRate: pct(attended + deptLeave, deptHeadcount * workingDays),
-        latePct: pct(deptLate, deptPresent + deptLate + deptHalf),
+        attendanceRate: pct(deptNumerator, deptDenominator),
+        absenteeismRate: pct(deptAbsent, deptDenominator),
+        latePct: pct(deptLate, deptPresent + deptLate),
       };
     })
     .sort((a, b) => b.headcount - a.headcount || a.departmentName.localeCompare(b.departmentName));
@@ -626,12 +896,28 @@ export function computeMetrics(input: MetricsInput = {}): MetricsResult {
     holidayAnchor
   ).map((row) => ({ id: Number(row.id), date: row.date, name: row.name }));
 
+  const insights: InsightLists = {
+    topLateComers: topLateComersIn(from, to, departmentId, employeeId),
+    leaveByType: leaveByTypeIn(
+      from,
+      to,
+      rosterIds,
+      headcount,
+      settings.weekendDays,
+      holidays,
+      departmentId,
+      employeeId
+    ),
+    payrollByDepartment: payrollByDepartmentIn(from, to, departmentId, employeeId),
+  };
+
   return {
     scope: { from, to, departmentId, employeeId },
     kpis,
     today: todaySnapshot(today, settings.weekendDays, holidays, departmentId, employeeId),
     trend,
     byDepartment,
+    insights,
     pending: { leaves: pendingLeaves, corrections: openCorrections },
     recentHires,
     upcomingHolidays,

@@ -42,16 +42,34 @@ const EMP3 = {
   basicSalary: 50000,
   password: "slbpass12345",
 };
+const EMP4 = {
+  code: "PRJ004",
+  fullName: "Prorated Absentee",
+  email: "prj4@hcm.local",
+  joinDate: "2026-09-16",
+  basicSalary: 250000,
+  password: "prjpass12345",
+};
 
 // Hand-computed payroll expectations for 2026-09 (22 working days, sat/sun weekend).
 const EXPECT = {
   totalWorkingDays: 22,
   e2: {
     eligibleDays: 13,
-    perDay: 11538.46,
+    // Run-wide daily rate: full gross / month working days (not eligible days).
+    perDay: 6818.18,
     gross: 88636.36,
     tax: 10000,
     net: 78636.36,
+  },
+  e4: {
+    eligibleDays: 11,
+    perDay: 17045.45,
+    gross: 187500,
+    deductions: 187500,
+    tax: 68750,
+    // No clamping: gross − deductions − tax (all 11 eligible days are unpaid).
+    net: -68750,
   },
   e3: { gross: 75000, tax: 1250, net: 73750 },
   e1: {
@@ -121,7 +139,26 @@ function cookieFrom(res) {
 
 async function login(email, password) {
   const result = await request("/api/auth/login", { method: "POST", body: { email, password } });
-  return { ...result, cookie: cookieFrom(result.res) };
+  let cookie = cookieFrom(result.res);
+  // Forced first-login password change: the server blocks every non-auth API
+  // with 403 password_change_required until it is completed, so finish it here.
+  if (
+    result.json?.user?.mustChangePassword === true &&
+    result.json?.user?.role === "employee" &&
+    cookie
+  ) {
+    const next = `${password}x`;
+    const changed = await request("/api/auth/change-password", {
+      method: "POST",
+      cookie,
+      body: { currentPassword: password, newPassword: next },
+    });
+    if (changed.res.status === 200) {
+      const again = await request("/api/auth/login", { method: "POST", body: { email, password: next } });
+      cookie = cookieFrom(again.res) || cookie;
+    }
+  }
+  return { ...result, cookie };
 }
 
 const state = {};
@@ -249,20 +286,23 @@ steps.push(async () => {
   const one = await createEmployee(EMP1, "emp1");
   const two = await createEmployee(EMP2, "emp2");
   const three = await createEmployee(EMP3, "emp3");
-  check("three employees registered (ATT001, MID002, SLB003)",
-    one.res.status === 201 && two.res.status === 201 && three.res.status === 201,
-    `ids=${state.emp1},${state.emp2},${state.emp3}`);
+  const four = await createEmployee(EMP4, "emp4");
+  check("four employees registered (ATT001, MID002, SLB003, PRJ004)",
+    one.res.status === 201 && two.res.status === 201 && three.res.status === 201 && four.res.status === 201,
+    `ids=${state.emp1},${state.emp2},${state.emp3},${state.emp4}`);
 });
 
 steps.push(async () => {
   const one = await login(EMP1.email, EMP1.password);
   const two = await login(EMP2.email, EMP2.password);
   const three = await login(EMP3.email, EMP3.password);
+  const four = await login(EMP4.email, EMP4.password);
   state.emp1Cookie = one.cookie;
   state.emp2Cookie = two.cookie;
   state.emp3Cookie = three.cookie;
-  check("all three employees can log in", !!state.emp1Cookie && !!state.emp2Cookie && !!state.emp3Cookie,
-    `statuses=${one.res.status},${two.res.status},${three.res.status}`);
+  state.emp4Cookie = four.cookie;
+  check("all four employees can log in", !!state.emp1Cookie && !!state.emp2Cookie && !!state.emp3Cookie && !!state.emp4Cookie,
+    `statuses=${one.res.status},${two.res.status},${three.res.status},${four.res.status}`);
 });
 
 // ---------------------------------------------------------- attendance
@@ -399,9 +439,10 @@ steps.push(async () => {
   const annual = types.json?.items?.find((item) => item.name === "Annual");
   state.annualId = annual?.id;
   state.casualId = types.json?.items?.find((item) => item.name === "Casual")?.id;
-  check("default leave types seeded (Annual 14)",
-    types.res.status === 200 && annual?.quotaDays === 14,
-    `annual=${state.annualId} quota=${annual?.quotaDays}`);
+  state.unpaidId = types.json?.items?.find((item) => item.name === "Unpaid")?.id;
+  check("default leave types seeded (Annual 14, Unpaid present)",
+    types.res.status === 200 && annual?.quotaDays === 14 && !!state.unpaidId,
+    `annual=${state.annualId} quota=${annual?.quotaDays} unpaid=${state.unpaidId}`);
 });
 
 steps.push(async () => {
@@ -608,6 +649,22 @@ steps.push(async () => {
     `annual=${annual.created.json?.request?.days} casual=${casual.created.json?.request?.days}`);
 });
 
+steps.push(async () => {
+  // E4 joins 2026-09-16 (11 eligible working days): 8 absent + 3 unpaid leave.
+  const unpaid = await leaveAndApprove(
+    state.emp4Cookie,
+    state.unpaidId,
+    "2026-09-28",
+    "2026-09-30",
+    "Unpaid leave"
+  );
+  check("E4 unpaid leave covers 3 Sep working days (2026-09-28..30)",
+    unpaid.created.res.status === 201 &&
+      unpaid.created.json?.request?.days === 3 &&
+      unpaid.approve.res.status === 200,
+    `days=${unpaid.created.json?.request?.days} approve=${unpaid.approve.res.status}`);
+});
+
 // -------------------------------------------------------------- payroll
 
 steps.push(async () => {
@@ -618,11 +675,11 @@ steps.push(async () => {
   });
   state.runId = json?.run?.id;
   state.payslips = json?.payslips ?? [];
-  check("HR creates 2026-09 draft run -> 201, 22 working days, 3 employees",
+  check("HR creates 2026-09 draft run -> 201, 22 working days, 4 employees",
     res.status === 201 &&
       json?.run?.status === "draft" &&
       json?.run?.workingDays === EXPECT.totalWorkingDays &&
-      json?.run?.employeeCount === 3,
+      json?.run?.employeeCount === 4,
     `status=${res.status} workingDays=${json?.run?.workingDays} employees=${json?.run?.employeeCount}`);
 });
 
@@ -640,14 +697,32 @@ steps.push(async () => {
 steps.push(async () => {
   const e2 = state.payslips.find((slip) => slip.employeeId === state.emp2);
   state.e2Payslip = e2;
-  check("mid-month joiner proration: gross 150000 × 13/22 = 88636.36, tax 10000, net 78636.36",
-    e2?.gross === EXPECT.e2.gross &&
+  check("mid-month joiner proration: gross 150000 × 13/22 = 88636.36, perDay 150000/22 = 6818.18, tax 10000, net 78636.36",
+    e2?.workingDays === EXPECT.e2.eligibleDays &&
+      e2?.gross === EXPECT.e2.gross &&
       e2?.tax === EXPECT.e2.tax &&
       e2?.net === EXPECT.e2.net &&
       e2?.perDay === EXPECT.e2.perDay &&
       e2?.deductions === 0 &&
       e2?.absentDays === 0,
-    `gross=${e2?.gross} (exp ${EXPECT.e2.gross}) tax=${e2?.tax} (exp ${EXPECT.e2.tax}) net=${e2?.net} (exp ${EXPECT.e2.net}) perDay=${e2?.perDay} (exp ${EXPECT.e2.perDay})`);
+    `workingDays=${e2?.workingDays} gross=${e2?.gross} (exp ${EXPECT.e2.gross}) tax=${e2?.tax} (exp ${EXPECT.e2.tax}) net=${e2?.net} (exp ${EXPECT.e2.net}) perDay=${e2?.perDay} (exp ${EXPECT.e2.perDay})`);
+});
+
+steps.push(async () => {
+  const e4 = state.payslips.find((slip) => slip.employeeId === state.emp4);
+  const expectedNet = round2(
+    EXPECT.e4.gross - EXPECT.e4.deductions - EXPECT.e4.tax
+  );
+  check("mid-month joiner with absences: perDay 375000/22 = 17045.45, gross 187500, deductions 11 × perDay = 187500, net -68750 (no clamp)",
+    e4?.workingDays === EXPECT.e4.eligibleDays &&
+      e4?.perDay === EXPECT.e4.perDay &&
+      e4?.gross === EXPECT.e4.gross &&
+      e4?.deductions === EXPECT.e4.deductions &&
+      e4?.tax === EXPECT.e4.tax &&
+      e4?.net === expectedNet &&
+      e4?.net === round2(e4.gross - e4.deductions - e4.tax) &&
+      Math.abs(e4.workingDays * e4.perDay - e4.gross) <= 0.1,
+    `workingDays=${e4?.workingDays} perDay=${e4?.perDay} gross=${e4?.gross} deductions=${e4?.deductions} tax=${e4?.tax} net=${e4?.net}`);
 });
 
 steps.push(async () => {
@@ -681,7 +756,7 @@ steps.push(async () => {
     res.status === 200 &&
       json?.run?.totalGross === sumGross &&
       json?.run?.totalNet === sumNet &&
-      json?.payslips?.length === 3,
+      json?.payslips?.length === 4,
     `gross=${json?.run?.totalGross}/${sumGross} net=${json?.run?.totalNet}/${sumNet}`);
 });
 

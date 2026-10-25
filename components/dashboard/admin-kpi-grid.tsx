@@ -1,7 +1,9 @@
 import {
+  BanknoteIcon,
   CalendarCheck2Icon,
   PalmtreeIcon,
   TimerIcon,
+  TrendingDownIcon,
   UserMinusIcon,
   UsersIcon,
   WalletIcon,
@@ -53,7 +55,8 @@ export function AdminKpiGrid({
   today: TodaySnapshot;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
+    <>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
       <KpiCard
         label="Headcount"
         value={String(kpis.headcount)}
@@ -104,5 +107,24 @@ export function AdminKpiGrid({
         icon={<WalletIcon className="size-3.5" />}
       />
     </div>
+    <div className="grid grid-cols-2 gap-3">
+      <KpiCard
+        label="Avg salary"
+        value={formatMoney(kpis.avgSalary)}
+        title={formatMoney(kpis.avgSalary)}
+        note="Monthly gross · 1.5 × basic"
+        icon={<BanknoteIcon className="size-3.5" />}
+        tone="text-emerald-600 dark:text-emerald-400"
+      />
+      <KpiCard
+        label="Attrition (YTD)"
+        value={`${kpis.attritionYtd.toFixed(1)}%`}
+        title={`${kpis.attritionYtd.toFixed(1)}%`}
+        note="Exits ÷ average headcount"
+        icon={<TrendingDownIcon className="size-3.5" />}
+        tone="text-rose-600 dark:text-rose-400"
+      />
+    </div>
+    </>
   );
 }

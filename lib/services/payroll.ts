@@ -87,7 +87,7 @@ type PayslipDbRow = {
 };
 
 const PAYSLIP_SELECT = `SELECT p.id, p.run_id, p.employee_id, e.full_name AS employee_name,
-  e.code AS employee_code, d.name AS department_name, r.month, r.working_days,
+  e.code AS employee_code, d.name AS department_name, r.month, p.working_days,
   p.basic, p.hra, p.medical, p.gross, p.per_day, p.absent_days, p.unpaid_days,
   p.half_days, p.deductions, p.tax, p.net
   FROM payslips p
@@ -135,6 +135,7 @@ export function monthlyTax(grossMonthly: number): number {
 
 type ComputedPayslip = {
   employeeId: number;
+  workingDays: number;
   basic: number;
   hra: number;
   medical: number;
@@ -325,8 +326,11 @@ export function createRun(
     const basic = round2(Number(employee.basic_salary));
     const gross = round2(basic * 1.5);
     const ratio = totalWorkingDays > 0 ? eligibleDates.length / totalWorkingDays : 0;
-    const grossForMonth = round2(gross * ratio);
-    const perDayExact = gross / eligibleDates.length;
+    // Daily rate is derived from the month's total working days, so every
+    // employee in the run shares the same per-day rate. Proration happens on
+    // grossForMonth, never on the denominator used for deductions.
+    const perDayExact = totalWorkingDays > 0 ? gross / totalWorkingDays : 0;
+    const grossForMonth = round2(perDayExact * eligibleDates.length);
 
     const cutoff =
       month > current ? null : month === current ? today : eligibleEnd;
@@ -346,6 +350,7 @@ export function createRun(
 
     computed.push({
       employeeId: Number(employee.id),
+      workingDays: eligibleDates.length,
       basic: basicForMonth,
       hra: hraForMonth,
       medical: medicalForMonth,
@@ -373,11 +378,12 @@ export function createRun(
     runId = Number(result.lastInsertRowid);
     for (const payslip of computed) {
       run(
-        `INSERT INTO payslips (run_id, employee_id, basic, hra, medical, gross, per_day,
+        `INSERT INTO payslips (run_id, employee_id, working_days, basic, hra, medical, gross, per_day,
            absent_days, unpaid_days, half_days, deductions, tax, net)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         runId,
         payslip.employeeId,
+        payslip.workingDays,
         payslip.basic,
         payslip.hra,
         payslip.medical,

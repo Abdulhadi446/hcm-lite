@@ -50,10 +50,10 @@ Source: `web` (default) | `camera` | `correction`.
 Salary structure per employee = `basic_salary` only; `hra = 0.4 × basic`, `medical = 0.1 × basic`, `gross = basic + hra + medical = 1.5 × basic`.
 
 Monthly run (`month = YYYY-MM`):
-1. `workingDays` = count of non-weekend, non-holiday days in the month that fall on/after the employee's join date and on/before exit date (if exited in that month).
-2. `perDay = gross / workingDays`.
-3. Deductions: `absent + unpaid + 0.5 × halfDays` (days) × `perDay`.
-4. Proration: employees who joined mid-month or exited mid-month are prorated — `grossForMonth = gross × (eligibleWorkingDays / totalWorkingDaysInMonth)`.
+1. `totalWorkingDays` = count of non-weekend, non-holiday days in the month. A payslip's `workingDays` = the employee's *eligible* working days (on/after join date, on/before exit date), so `workingDays × perDay ≈ grossForMonth`.
+2. `perDay = gross / totalWorkingDaysInMonth` — the run's daily rate, identical for every employee in the month.
+3. Deductions: `(absent + unpaid + 0.5 × halfDays) × perDay`.
+4. Proration: employees who joined mid-month or exited mid-month are prorated — `grossForMonth = perDay × eligibleWorkingDays = gross × (eligibleWorkingDays / totalWorkingDaysInMonth)`.
 5. Tax: annual = `gross × 12` → slab → monthly tax = annualTax / 12.
    Slabs: 0–600 000 → 0; 600 001–1 200 000 → 5% of excess over 600 000; 1 200 001–2 400 000 → 30 000 + 15% of excess over 1 200 000; 2 400 001–3 600 000 → 210 000 + 25% over 2 400 000; above 3 600 000 → 510 000 + 35% over 3 600 000.
 6. `net = grossForMonth - deductions - tax`, rounded to 2 decimals.

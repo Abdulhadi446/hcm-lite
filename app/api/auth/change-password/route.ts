@@ -9,7 +9,8 @@ export async function POST(request: Request) {
     const parsed = await parseBody(request, changePasswordSchema);
     if (!parsed.ok) return parsed.response;
 
-    const user = await requireUser();
+    // The forced-change endpoint itself must stay reachable while pending.
+    const user = await requireUser({ allowPasswordChangePending: true });
     const { currentPassword, newPassword } = parsed.data;
 
     const row = queryOne<{ password_hash: string }>(

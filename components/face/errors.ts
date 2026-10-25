@@ -18,6 +18,15 @@ export function formatMeters(value: number | null): string {
 export function describeFailure(failure: FaceRequestFailure): FailureCopy {
   const { code, status } = failure;
 
+  if (code?.startsWith("capture_")) {
+    const reason = code.slice("capture_".length) as
+      | FaceGateReason
+      | "busy"
+      | "no-camera"
+      | "not-ready";
+    return describeCaptureFailure(reason);
+  }
+
   switch (code) {
     case "face_not_enrolled":
       return {

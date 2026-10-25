@@ -21,16 +21,18 @@
   <a href="https://hcm-lite.thetrillioniar.me"><b>Live demo</b></a> ·
   <a href="docs/DEMO.md">Demo script</a> ·
   <a href="#architecture">Architecture</a> ·
-  <a href="#sample-data-exploring-or-judging">Sample logins</a>
+  <a href="#sample-data-exploring-or-judging">Sample logins</a> ·
+  <a href="#judging-checklist">Judging checklist</a>
 </p>
 
 <p align="center">
   <img src="docs/screenshots/dashboard-admin.png" alt="Admin dashboard: headcount, attendance rate, late %, payroll cost and attendance trend" width="880" />
 </p>
 
-**Live demo:** https://hcm-lite.thetrillioniar.me — the deployed instance ships with sample data so every
-screen has something to show. Reset it to a blank install (setup wizard) with
-`bash scripts/reset-deployed-db.sh`.
+**Live demo:** https://hcm-lite.thetrillioniar.me — a hosted install you can judge cold. On an empty
+database it opens at the first-run setup wizard; to fill every screen in one click, sign in as Admin →
+**Organization → Company → Load sample data**. Reset it to a blank install with
+`bash scripts/reset-deployed-db.sh`. Judge path: [docs/DEMO.md](docs/DEMO.md).
 
 Built for the Saylani Hackathon (24 Oct 2026).
 
@@ -155,14 +157,8 @@ Requires **Node 22+** (for `node:sqlite`).
 ```bash
 npm install
 cp .env.example .env
-# Edit .env and add an OpenRouter key if you want to use the AI assistant.
 npm run dev               # http://localhost:3000
 ```
-
-Open the app: it redirects to `/setup`, where you create the company and the first Admin account.
-Then, as Admin, add departments, designations, leave types and holidays, and create an HR login
-(Organization → Logins). Sign in as HR to register employees — each registration returns a one-time
-temporary password that the employee must change on first sign-in.
 
 For a production build:
 
@@ -172,8 +168,49 @@ npm run build
 npm start
 ```
 
-The SQLite database is created automatically on first access. To start over locally, stop the
-development server and remove `dev.db` (and its `-wal`/`-shm` files).
+The SQLite database is created automatically on first access.
+
+### How to create the first Admin
+
+There is nothing to log in to on a fresh install — the app creates the first Admin for you:
+
+1. Run the steps above and open http://localhost:3000 (on the hosted app, just open the URL).
+2. With an empty database the app redirects straight to **`/setup`** — no login exists yet.
+3. **Step 1 — Organization & working hours:** company name and **Day starts at** (the 15-minute
+   grace period is applied automatically; weekends and the half-day threshold are tuned later in
+   Organization) → **Continue**.
+4. **Step 2 — Administrator:** full name, **work email** and **password** → **Create company**.
+5. The company row and the first Admin account are created in one transaction, and you are signed
+   in as Admin.
+
+Env bypass (useful for a hosted first-run, CI or a demo where you do not want the wizard): set
+`ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env` (optionally `COMPANY_NAME`) and open the app — the
+company and Admin are created automatically. If either admin variable is missing, the wizard is
+shown instead.
+
+Then, as Admin, add departments, designations, leave types and holidays, and create an HR login
+(Organization → Logins). Sign in as HR to register employees — each registration returns a one-time
+temporary password that the employee must change on first sign-in.
+
+To start over: stop the dev server and delete `dev.db` (and its `-wal`/`-shm` files), or run
+`bash scripts/reset-deployed-db.sh` against the deployed instance — it wipes the live DB and the
+app opens at `/setup` again.
+
+### Setting the AI key
+
+The AI assistant (chat, smart leave, dashboard **Summarize**) reads its key **server-side only** —
+it is never shipped to the browser and never appears in a client bundle. In `.env`:
+
+```bash
+OPENAI_API_KEY=sk-or-...           # OPENROUTER_API_KEY is accepted as a fallback
+OPENAI_BASE_URL=https://openrouter.ai/api/v1
+OPENAI_MODEL=openrouter/free       # must support tool calling
+```
+
+Restart the server after editing `.env`. The app **runs fine without a key**: auth, org, employees,
+attendance, leave, payroll, dashboards, audit and payslips all work, and the assistant simply shows
+its fallback state (e.g. a rules-based summary) instead of an AI answer. See the
+[Environment](#environment) table below for every variable.
 
 ### Sample data (exploring or judging)
 
@@ -240,16 +277,68 @@ The face models (~10 MB) are not committed: `postinstall` copies them from `@vla
 - `scripts/api-smoke-demo-seed.mjs` — sample-data loader (API + UI, 1440/375)
 - `scripts/e2e-full.mjs` — the whole journey from an empty database through the UI (18 checks)
 - `scripts/deployed-check.mjs` — live URL walkthrough with Playwright (desktop + 375 px screenshots)
+- `scripts/acceptance-security.mjs`, `scripts/acceptance-security-fixes.mjs`, `scripts/acceptance-api.mjs`,
+  `scripts/acceptance-ui.mjs` — acceptance passes for security, API and UI
+- `scripts/api-smoke-face.mjs` — face-attendance **backend** only (see
+  [Scope](#scope--done--not-done): not part of the demo)
 
 Each smoke script boots `next start` on its own port against a throwaway SQLite file, so they can run
 without touching `dev.db`.
 
-## Scope
+## Scope — done / not done
 
-Shipped: the nine modules above, end to end, from an empty database.
+### Done — works end to end from an empty database
 
-Not shipped (out of scope by decision): camera/geofence attendance, email/SMS delivery, multi-company
-tenancy, recruitment, performance, documents, org chart, mobile app, and editing a finalized payroll run.
+- [x] The nine **Modules** above, in one deployment: auth & access, org setup, employees,
+      attendance, leave, payroll + payslip PDF, dashboards, AI assistant, comms & audit.
+- [x] Three-role RBAC re-checked server-side on every API route, plus an append-only audit log
+      with before/after snapshots.
+- [x] First-run setup wizard at `/setup`, plus the `ADMIN_EMAIL` / `ADMIN_PASSWORD` env bypass.
+- [x] Sample-data loader (Admin → Organization → Company → *Load sample data*) and
+      `scripts/reset-deployed-db.sh` for a clean demo.
+- [x] Hosted deployment, screenshots, `docs/DEMO.md` (5-minute script) and this README.
+
+### Not done — the brief's bonus rows, honestly
+
+- [ ] **Camera + geofence face attendance** — built but **not shipped and not verified**; do not
+      count it. The backend is smoke-tested (`scripts/api-smoke-face.mjs` reports `SMOKE: ALL PASS`
+      in `.agent-logs/face-smoke-*.log` — challenge, cosine match, geofence, audit rows, no
+      embedding leaked) and a frontend exists (`app/(app)/face-check-in`, `components/face/*`), but
+      the frontend is **uncommitted as of this writing** and neither the page nor the camera flow
+      has been verified in a browser or on the live URL.
+- [ ] **Attrition risk score** — not implemented.
+- [ ] **Absence anomaly flags** — not implemented (absence is computed per day; nothing flags
+      unusual patterns).
+- [ ] **Late-penalty rule (3 lates = 0.5 day)** — not implemented; lateness is reported on the
+      board and in KPIs, never penalised.
+- [ ] **Roman Urdu understanding** — not implemented (assistant and smart leave expect English).
+- [ ] **Dark mode** — not implemented (no theme provider, no `dark` variant in `app/globals.css`).
+- [ ] **PWA** — partial only: `app/manifest.ts` (name, icons, `display: standalone`) is served, but
+      there is **no service worker**, no offline support and no install testing, so the PWA bonus is
+      not claimed.
+
+### Not shipped (out of scope by decision)
+
+email/SMS delivery, multi-company tenancy, recruitment, performance, documents, org chart, mobile
+app, and editing a finalized payroll run.
+
+## Judging checklist
+
+Maps the brief's scoring rows to where each one is evidenced — no capability is claimed that is not
+listed above.
+
+| Row | Pts | Evidence |
+|---|---|---|
+| **Core HR flows** | 25 | The nine modules; `scripts/e2e-full.mjs` (empty DB → UI journey), `scripts/api-smoke-m2/m3m5`, `scripts/acceptance-*.mjs`; demo steps 1–8 and 11–12 in `docs/DEMO.md` |
+| **Data & analytics** | 20 | Dashboards module — every KPI computed in SQL by `lib/services/analytics.ts`; `scripts/api-smoke-m6.mjs`; dashboard screenshots; demo steps 9–11 |
+| **AI features** | 15 | AI assistant module (8 tools, salary refusal, rate limit, `ai_logs`), smart leave and dashboard **Summarize**; `scripts/api-smoke-m7a.mjs`, `scripts/api-smoke-ai-summary.mjs`; demo steps 7, 9, 10, 13 |
+| **Code quality** | 15 | [Architecture](#architecture) — routes own permissions, services own rules, pages own presentation; zod on every request body; idempotent schema. Check with `npm run lint`, `npx tsc --noEmit`, `npm run build` |
+| **UI/UX** | 10 | [Screenshots](#screenshots), responsive to 390 px, shadcn/ui on Base UI; `scripts/deployed-check.mjs` and `scripts/acceptance-ui.mjs` capture desktop + mobile passes |
+| **Security & RBAC** | 10 | [Roles](#roles) table (the "deliberately cannot" column), bcrypt + httpOnly JWT cookie, per-route guards, `scopeEmployeeId()`; `scripts/api-smoke-m2/m7a/m8`, `scripts/acceptance-security.mjs` |
+| **Demo & docs** | 5 | `docs/DEMO.md` (300 s script with cheat sheet and breakage plan), this README (stack, run, first Admin, AI key, done/not done), live URL + repo links |
+
+**Bonus (+10):** none of the six bonus rows is claimed — see
+[Scope — done / not done](#scope--done--not-done) for what exists and what does not.
 
 ## License
 

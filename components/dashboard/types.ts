@@ -22,6 +22,10 @@ export type DashboardKpis = {
   avgTenureMonths: number;
   openCorrections: number;
   pendingLeaves: number;
+  /** Mean monthly gross (1.5 x basic) over the in-scope roster. */
+  avgSalary: number;
+  /** Exits this calendar year / average headcount, as a percentage. */
+  attritionYtd: number;
 };
 
 export type TodaySnapshot = {
@@ -63,12 +67,43 @@ export type DashboardScope = {
   role: "admin" | "hr" | "employee";
 };
 
+export type LateComerRow = {
+  employeeId: number;
+  name: string;
+  code: string;
+  departmentName: string | null;
+  lateDays: number;
+};
+
+export type LeaveTypeRow = {
+  leaveTypeId: number;
+  typeName: string;
+  approvedDays: number;
+  entitlementDays: number;
+  utilization: number;
+};
+
+export type PayrollDeptRow = {
+  departmentId: number | null;
+  departmentName: string;
+  headcount: number;
+  payrollCost: number;
+  avgSalary: number;
+};
+
+export type InsightLists = {
+  topLateComers: LateComerRow[];
+  leaveByType: LeaveTypeRow[];
+  payrollByDepartment: PayrollDeptRow[];
+};
+
 export type DashboardSummary = {
   scope: DashboardScope;
   kpis: DashboardKpis;
   today: TodaySnapshot;
   trend: TrendPoint[];
   byDepartment: DepartmentBreakdown[];
+  insights: InsightLists;
   pending: { leaves: number; corrections: number };
   recentHires: RecentHire[];
   upcomingHolidays: HolidayItem[];

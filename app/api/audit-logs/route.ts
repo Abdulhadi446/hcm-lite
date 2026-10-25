@@ -2,7 +2,7 @@ import { headers } from "next/headers";
 import { isIsoDate } from "@/lib/dates";
 import { requireRole } from "@/lib/guards";
 import { listAuditLogs } from "@/lib/services/audit";
-import { apiErrorJson, fieldError } from "@/lib/services/http";
+import { apiErrorJson, fieldError, parsePagination } from "@/lib/services/http";
 
 export async function GET(request: Request) {
   await headers();
@@ -20,8 +20,7 @@ export async function GET(request: Request) {
     }
 
     const rawActorId = Number(params.get("actorId"));
-    const rawPage = Number(params.get("page"));
-    const rawPageSize = Number(params.get("pageSize"));
+    const { page, pageSize } = parsePagination(params);
 
     return Response.json(
       listAuditLogs({
@@ -30,8 +29,8 @@ export async function GET(request: Request) {
         actorId: Number.isInteger(rawActorId) && rawActorId > 0 ? rawActorId : undefined,
         from: rawFrom,
         to: rawTo,
-        page: Number.isInteger(rawPage) && rawPage > 0 ? rawPage : 1,
-        pageSize: Number.isInteger(rawPageSize) && rawPageSize > 0 ? rawPageSize : undefined,
+        page,
+        pageSize,
       })
     );
   } catch (err) {

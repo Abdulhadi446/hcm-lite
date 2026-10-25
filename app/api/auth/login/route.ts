@@ -3,6 +3,7 @@ import { queryOne } from "@/lib/db";
 import { verifyPassword, signSession, setSessionCookie, type Role } from "@/lib/auth";
 import { loginSchema, parseBody } from "@/lib/validation";
 import { apiError } from "@/lib/guards";
+import { logAudit } from "@/lib/services/audit";
 
 function toSessionUser(row: Record<string, unknown>, companyName: string) {
   return {
@@ -46,6 +47,13 @@ export async function POST(request: Request) {
     );
 
     const token = await signSession(sessionUser);
+    logAudit({
+      actorId: sessionUser.id,
+      action: "login",
+      entity: "user",
+      entityId: sessionUser.id,
+      after: { email: sessionUser.email, role: sessionUser.role },
+    });
     const res = NextResponse.json({ user: sessionUser });
     setSessionCookie(res, token);
     return res;

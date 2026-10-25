@@ -1,11 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { PencilIcon } from "lucide-react";
+import Link from "next/link";
+import { PencilIcon, ScanFaceIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PageHeader } from "@/components/page-header";
 import { apiFetch, readableError } from "@/components/shared/api";
@@ -104,10 +105,19 @@ export function MyAttendanceView({ today }: { today: string }) {
         title="My attendance"
         description="Your check-ins, hours, and month at a glance."
         actions={
-          <Button variant="outline" size="sm" onClick={() => setCorrectionOpen(true)}>
-            <PencilIcon />
-            Request correction
-          </Button>
+          <>
+            <Link
+              href="/face-check-in"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              <ScanFaceIcon />
+              Verify with camera
+            </Link>
+            <Button variant="outline" size="sm" onClick={() => setCorrectionOpen(true)}>
+              <PencilIcon />
+              Request correction
+            </Button>
+          </>
         }
       />
 

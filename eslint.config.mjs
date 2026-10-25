@@ -20,6 +20,10 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Local scratch + agent logs (gitignored, not project source):
+    ".tmp/**",
+    ".agent-logs/**",
+    "public/models/**",
   ]),
 ]);
 

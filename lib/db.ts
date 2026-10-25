@@ -27,6 +27,7 @@ function createDb(): DatabaseSync {
   ensureColumn(db, "notifications", "type", "TEXT");
   ensureColumn(db, "notifications", "link", "TEXT");
   ensureColumn(db, "attendance", "verification_method", "TEXT");
+  ensureColumn(db, "payslips", "working_days", "INTEGER NOT NULL DEFAULT 0");
   return db;
 }
 

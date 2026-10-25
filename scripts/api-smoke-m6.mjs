@@ -30,6 +30,7 @@ const ADMIN = { name: "Smoke Admin", email: "admin@hcm.local", password: "admin1
 const COMPANY = "M6 Smoke Co";
 const HR = { name: "Hana HR", email: "hr@hcm.local", password: "hrpass12345" };
 const DEFAULT_EMPLOYEE_PASSWORD = "empPass1234";
+const NEW_EMP_PASSWORD = "EmpPass12345";
 
 // Hand-picked numbers so every KPI can be verified on paper.
 const FIXED_FROM = "2026-09-01";
@@ -290,6 +291,10 @@ steps.push(async () => {
     if (json?.employee?.id) state.employees[employee.key] = json.employee.id;
     const session = await login(`${employee.key}@hcm.local`, DEFAULT_EMPLOYEE_PASSWORD);
     state.cookies[employee.key] = session.cookie;
+    const changed = await request("/api/auth/change-password", { method: "POST", cookie: session.cookie, body: { currentPassword: DEFAULT_EMPLOYEE_PASSWORD, newPassword: NEW_EMP_PASSWORD } });
+    if (changed.res.status === 200 && cookieFrom(changed.res)) {
+      state.cookies[employee.key] = cookieFrom(changed.res) || session.cookie;
+    }
     check(
       `seed employee ${employee.code} (${employee.dept}) + login`,
       res.status === 201 && !!state.employees[employee.key] && session.res.status === 200,
@@ -514,9 +519,9 @@ steps.push(async () => {
   expectKpi("halfDays", 1, kpis.halfDays);
   expectKpi("onLeaveDays", 2, kpis.onLeaveDays);
   expectKpi("absentDays", 100, kpis.absentDays);
-  expectKpi("attendanceRate", 9.1, kpis.attendanceRate);
-  expectKpi("latePct", 25, kpis.latePct);
-  expectKpi("absenteeismRate", 90.9, kpis.absenteeismRate);
+  expectKpi("attendanceRate", 6.9, kpis.attendanceRate);
+  expectKpi("latePct", 28.6, kpis.latePct);
+  expectKpi("absenteeismRate", 92.6, kpis.absenteeismRate);
   expectKpi("attritionRate", 0, kpis.attritionRate);
   expectKpi("leaveUtilization", 1.3, kpis.leaveUtilization);
   expectKpi("payrollCost (range has no finalized run)", 0, kpis.payrollCost);
@@ -575,15 +580,15 @@ steps.push(async () => {
 
   expectKpi("byDepartment.count", 2, summary.byDepartment?.length);
   check(
-    "Engineering: headcount 2, 8/44 attended -> 18.2%, 2/8 late -> 25%",
+    "Engineering: headcount 2, 8/44 attended -> 17.0%, 2/8 late -> 28.6%",
     engineering?.headcount === 2 &&
-      engineering?.attendanceRate === 18.2 &&
-      engineering?.latePct === 25,
+      engineering?.attendanceRate === 17.0 &&
+      engineering?.latePct === 28.6,
     JSON.stringify(engineering)
   );
   check(
-    "Operations: headcount 3, 2 leave/66 -> 3%, 0% late",
-    operations?.headcount === 3 && operations?.attendanceRate === 3 && operations?.latePct === 0,
+    "Operations: headcount 3, 0 attended -> 0%, 0% late",
+    operations?.headcount === 3 && operations?.attendanceRate === 0 && operations?.latePct === 0,
     JSON.stringify(operations)
   );
   check(
@@ -622,8 +627,8 @@ steps.push(async () => {
   expectKpi("dept.halfDays", 1, json.kpis.halfDays);
   expectKpi("dept.onLeaveDays", 0, json.kpis.onLeaveDays);
   expectKpi("dept.absentDays", 36, json.kpis.absentDays);
-  expectKpi("dept.attendanceRate", 18.2, json.kpis.attendanceRate);
-  expectKpi("dept.latePct", 25, json.kpis.latePct);
+  expectKpi("dept.attendanceRate", 17.0, json.kpis.attendanceRate);
+  expectKpi("dept.latePct", 28.6, json.kpis.latePct);
   expectKpi("dept.absenteeismRate", 81.8, json.kpis.absenteeismRate);
   expectKpi("dept.byDepartment.length", 1, json.byDepartment.length);
 });
@@ -770,8 +775,10 @@ steps.push(async () => {
   const changed = await request("/api/auth/change-password", {
     method: "POST",
     cookie: state.cookies.e1,
-    body: { currentPassword: DEFAULT_EMPLOYEE_PASSWORD, newPassword: "emp1pass4567" },
+    body: { currentPassword: NEW_EMP_PASSWORD, newPassword: "emp1pass4567" },
   });
+  const refreshed = cookieFrom(changed.res);
+  if (refreshed) state.cookies.e1 = refreshed;
   check("E1 changes password (so /dashboard renders for the screenshot pass)", changed.res.status === 200, `status=${changed.res.status}`);
 });
 

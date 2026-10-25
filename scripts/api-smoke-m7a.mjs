@@ -75,7 +75,26 @@ function cookieFrom(res) {
 
 async function login(email, password) {
   const result = await request("/api/auth/login", { method: "POST", body: { email, password } });
-  return { ...result, cookie: cookieFrom(result.res) };
+  let cookie = cookieFrom(result.res);
+  // Forced first-login password change: the server blocks every non-auth API
+  // with 403 password_change_required until it is completed, so finish it here.
+  if (
+    result.json?.user?.mustChangePassword === true &&
+    result.json?.user?.role === "employee" &&
+    cookie
+  ) {
+    const next = `${password}x`;
+    const changed = await request("/api/auth/change-password", {
+      method: "POST",
+      cookie,
+      body: { currentPassword: password, newPassword: next },
+    });
+    if (changed.res.status === 200) {
+      const again = await request("/api/auth/login", { method: "POST", body: { email, password: next } });
+      cookie = cookieFrom(again.res) || cookie;
+    }
+  }
+  return { ...result, cookie };
 }
 
 // ------------------------------------------------------------ stub model
@@ -582,6 +601,9 @@ async function main() {
     OPENAI_BASE_URL: "",
     OPENAI_MODEL: "",
     AI_MODEL: "",
+    // .env may carry an OpenRouter key; the client accepts either name, so the
+    // "no key" phase must blank that one too (env vars win over .env files).
+    OPENROUTER_API_KEY: "",
   });
   if (!(await waitForServer())) {
     console.error(`Server did not start; see ${SERVER_LOG}`);

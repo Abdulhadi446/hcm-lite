@@ -29,6 +29,7 @@ export const NAV_BY_ROLE: Record<string, NavItem[]> = {
   employee: [
     { path: "/dashboard", label: "Dashboard", icon: "LayoutDashboard" },
     { path: "/my-attendance", label: "My Attendance", icon: "Clock" },
+    { path: "/face-check-in", label: "Face check-in", icon: "Clock" },
     { path: "/my-leave", label: "My Leave", icon: "Calendar" },
     { path: "/payslips", label: "Payslips", icon: "FileText" },
     { path: "/announcements", label: "Announcements", icon: "Megaphone" },

@@ -1,11 +1,23 @@
 # Current Task
 
 ## Task
-M9 — final integration, live verification, handoff
+Submission push — full test pass, redeploy, judge-facing docs
 
 ## Description
-All nine modules are shipped and verified locally. This phase is about the deployment being
-demo-ready: clean build, lint, live walkthrough, sample-data fallback, docs.
+Everything is built; this pass is (1) run the whole verification suite locally, (2) redeploy to
+tests2 and re-verify the live URL from a fresh install, (3) ship the last page of the brief:
+5-minute demo script + README (first Admin, AI key, done/not-done, judging checklist).
+
+## Lanes
+- [x] M6 metrics/dashboards vs `docs/M10-ANALYTICS-CONTRACT.md`; `scripts/api-smoke-m6.mjs` → ALL PASS
+- [x] Employee dashboard widgets: check-in card, `h / 40h` week bar, ask-the-assistant card
+- [x] `docs/DEMO.md` → 300 s script (14 steps, all five judge beats, cheat sheet + breakage plan)
+- [x] `README.md` → first-Admin steps, AI-key section, done/not-done (bonus honest), judging checklist
+- [ ] Full local suite (fix-3 lane, running): api-smoke* / acceptance-* / e2e-full + tsc/eslint/build
+- [ ] Redeploy to tests2 + live re-verification + `deployed-check.mjs`
+
+## Previous milestone status
+All nine modules are shipped and verified locally.
 
 ## Status
 - [x] M0 auth/setup/shell, M1 org, M2 employees, M3 attendance, M4 leave, M5 payroll + payslip PDF

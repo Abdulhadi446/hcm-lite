@@ -6,7 +6,14 @@ import { ApiError, scopeEmployeeId } from "@/lib/guards";
 import { isIsoDate, todayIso } from "@/lib/dates";
 import { logAudit } from "./audit";
 import { ensureDefaultLeaveTypes } from "./org";
-import { ApiFieldError, duplicateError, fieldError, notFound } from "./http";
+import {
+  ApiFieldError,
+  duplicateError,
+  fieldError,
+  normalizePage,
+  normalizePageSize,
+  notFound,
+} from "./http";
 import { generateTempPassword } from "./users";
 
 // ---------------------------------------------------------------- types
@@ -148,8 +155,8 @@ export function listEmployees(
   filters: EmployeeFilters,
   scope: Scope
 ): { items: Employee[]; total: number; page: number; pageSize: number } {
-  const page = Math.max(1, Math.floor(Number(filters.page) || 1));
-  const pageSize = Math.min(100, Math.max(1, Math.floor(Number(filters.pageSize) || 20)));
+  const page = normalizePage(filters.page ?? 1);
+  const pageSize = normalizePageSize(filters.pageSize ?? 20);
 
   if (scope.role === "employee") {
     if (scope.employeeId === null) {

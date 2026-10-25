@@ -108,7 +108,7 @@ export async function buildPayslipPdf(data: PayslipPdfInput): Promise<Uint8Array
 
   text("Attendance", { size: 11, bold: true });
   y -= 17;
-  row("Working days", String(data.workingDays));
+  row("Eligible working days", String(data.workingDays));
   row("Per day", money(data.perDay));
   row("Absent days", String(data.absentDays));
   row("Unpaid leave days", String(data.unpaidDays));

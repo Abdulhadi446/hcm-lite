@@ -1,5 +1,5 @@
 import "server-only";
-import { queryAll, run } from "@/lib/db";
+import { queryAll, queryOne, run } from "@/lib/db";
 
 /**
  * Minimal OpenAI-compatible chat client for M7.
@@ -261,5 +261,53 @@ export function writeAiLog(input: AiLogInput): void {
     );
   } catch (err) {
     console.error("[ai] failed to write ai_logs row:", err instanceof Error ? err.message : err);
+  }
+}
+
+// ---------------------------------------------------------- rate limiting
+
+/**
+ * Shared per-user hourly budget for AI calls. `/api/ai/chat` keeps its own
+ * inline copy (unchanged behaviour); new AI routes use this helper so they
+ * count against the same `ai_logs` window — 20 calls per user per hour.
+ *
+ * Returns `limited: false` when a call may proceed.
+ */
+export const AI_RATE_LIMIT = 20;
+export const AI_RATE_WINDOW_MS = 60 * 60 * 1000;
+
+export type AiRateLimit = { limited: boolean; retryAfterSeconds: number };
+
+export function aiRateLimitFor(
+  userId: number,
+  limit = AI_RATE_LIMIT,
+  windowMs = AI_RATE_WINDOW_MS
+): AiRateLimit {
+  try {
+    const now = Date.now();
+    const cutoff = new Date(now - windowMs).toISOString();
+    const used = Number(
+      queryOne<{ c: number }>(
+        "SELECT COUNT(*) AS c FROM ai_logs WHERE user_id = ? AND created_at >= ?",
+        userId,
+        cutoff
+      )?.c ?? 0
+    );
+    if (used < limit) return { limited: false, retryAfterSeconds: 0 };
+
+    const oldest = queryOne<{ created_at: string }>(
+      `SELECT created_at FROM ai_logs WHERE user_id = ? AND created_at >= ?
+        ORDER BY created_at ASC LIMIT 1`,
+      userId,
+      cutoff
+    );
+    const elapsed = oldest ? now - Date.parse(oldest.created_at) : 0;
+    return {
+      limited: true,
+      retryAfterSeconds: Math.max(1, Math.ceil((windowMs - elapsed) / 1000)),
+    };
+  } catch {
+    // Never let the limiter itself take the route down.
+    return { limited: false, retryAfterSeconds: 0 };
   }
 }

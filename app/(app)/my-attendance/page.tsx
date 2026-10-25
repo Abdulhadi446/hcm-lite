@@ -4,6 +4,9 @@ import { getSessionUser } from "@/lib/auth";
 import { todayIso } from "@/lib/dates";
 import { MyAttendanceView } from "@/components/attendance/my-attendance-view";
 
+// The page reads the session per request; opt out of static-shell validation.
+export const instant = false;
+
 export default async function MyAttendancePage() {
   const user = await getSessionUser();
   if (!user) redirect("/login");
